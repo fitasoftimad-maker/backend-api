@@ -22,8 +22,7 @@
     "sourceMap": true,
     "incremental": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "types": ["node"]
+    "emitDecoratorMetadata": true
   },
   "include": [
     "**/*.ts",
