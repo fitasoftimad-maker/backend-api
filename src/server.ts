@@ -30,16 +30,41 @@ app.use(helmet({
 
 // CORS
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production'
-    ? [
-        process.env.FRONTEND_URL || 'https://yourdomain.com',
-        /\.lws\.fr$/, // Permettre tous les sous-domaines LWS
-        /^https:\/\/.*\.lws\.fr$/ // Regex pour les domaines LWS
-      ]
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = process.env.NODE_ENV === 'production'
+      ? [
+          process.env.FRONTEND_URL || 'https://test.softimad.com',
+          'https://test.softimad.com',
+          /\.lws\.fr$/, // Permettre tous les sous-domaines LWS
+          /^https:\/\/.*\.lws\.fr$/, // Regex pour les domaines LWS
+          'https://backend-api-9c1n.onrender.com' // Pour les tests directs
+        ]
+      : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'];
+
+    // Check if the origin matches any allowed pattern
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return allowedOrigin === origin;
+      } else if (allowedOrigin instanceof RegExp) {
+        return allowedOrigin.test(origin);
+      }
+      return false;
+    });
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 };
 
 app.use(cors(corsOptions));
