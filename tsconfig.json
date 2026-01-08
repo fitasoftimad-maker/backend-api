@@ -15,7 +15,7 @@
     "isolatedModules": true,
     "noEmit": false,
     "outDir": "./dist",
-    "rootDir": "./",
+    "rootDir": "./src",
     "removeComments": true,
     "declaration": true,
     "declarationMap": true,
@@ -25,13 +25,14 @@
     "emitDecoratorMetadata": true
   },
   "include": [
-    "**/*.ts",
-    "**/*.js"
+    "src/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "**/*.test.ts",
-    "**/*.spec.ts"
+    "**/*.spec.ts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts"
   ]
 }
