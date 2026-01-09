@@ -68,3 +68,55 @@ export interface IDashboardStats {
     absentDays: number;
   };
 }
+
+// Types pour le time tracking amélioré
+export interface IBreak {
+  start: Date;
+  end?: Date;
+  duration?: number; // en minutes
+}
+
+export interface ITimeEntry {
+  date: Date;
+  checkIn?: Date;
+  checkOut?: Date;
+  breaks: IBreak[];
+  totalHours?: number;
+  breakHours?: number;
+  netHours?: number;
+  status: 'present' | 'absent' | 'late' | 'partial' | 'in_progress' | 'completed';
+  notes?: string;
+  isPaused?: boolean;
+  lastResumeTime?: Date;
+}
+
+export interface IRealTimeStatus {
+  entry: ITimeEntry | null;
+  currentTime: Date;
+  totalHours: number;
+  breakHours: number;
+  netHours: number;
+  isWorking: boolean;
+  isPaused: boolean;
+  timeToEightHours: number; // minutes restantes
+}
+
+export interface IWeeklyTotal {
+  week: number;
+  startDate: Date;
+  endDate: Date;
+  totalHours: number;
+  entries: number;
+}
+
+export interface ITimeTrackingHistory {
+  tracking: {
+    entries: ITimeEntry[];
+    totalHoursMonth: number;
+    month: number;
+    year: number;
+  };
+  weeklyTotals: IWeeklyTotal[];
+  month: number;
+  year: number;
+}
