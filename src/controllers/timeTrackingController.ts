@@ -68,16 +68,29 @@ export const checkOut = async (req: Request, res: Response<IApiResponse>): Promi
     }
 
     // Mettre à jour avec l'heure de départ
-    await TimeTracking.createOrUpdateEntry(new Types.ObjectId(userId), {
+    const updatedTracking = await TimeTracking.createOrUpdateEntry(new Types.ObjectId(userId), {
       date: new Date(),
       checkOut: now
     });
 
+    // Récupérer l'entrée mise à jour pour obtenir les heures nettes calculées
+    const updatedToday = new Date().toDateString();
+    const updatedEntry = updatedTracking.entries.find(
+      entry => entry.date.toDateString() === updatedToday
+    );
+
+    const netHours = updatedEntry?.netHours || 0;
+    const hasReachedEightHours = netHours >= 8;
+
     res.json({
       success: true,
-      message: 'Pointage départ enregistré',
+      message: hasReachedEightHours 
+        ? 'Pointage départ enregistré. Vous avez atteint 8 heures de travail !' 
+        : 'Pointage départ enregistré',
       data: {
-        checkOut: now
+        checkOut: now,
+        netHours: netHours,
+        hasReachedEightHours: hasReachedEightHours
       }
     });
   } catch (error) {
@@ -206,6 +219,84 @@ export const resumeWork = async (req: Request, res: Response<IApiResponse>): Pro
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la reprise du travail'
+    });
+  }
+};
+
+// @desc    Reprendre le travail après un départ pour compléter 8h
+// @route   POST /api/timetracking/continue
+// @access  Private (User only)
+export const continueWork = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    const userId = req.user!._id;
+    const now = new Date();
+
+    const tracking = await TimeTracking.getCurrentMonthTracking(new Types.ObjectId(userId));
+
+    if (!tracking) {
+      res.status(400).json({
+        success: false,
+        message: 'Aucun pointage trouvé'
+      });
+      return;
+    }
+
+    const today = new Date().toDateString();
+    const todayEntry = tracking.entries.find(
+      entry => entry.date.toDateString() === today
+    );
+
+    if (!todayEntry || !todayEntry.checkIn) {
+      res.status(400).json({
+        success: false,
+        message: 'Aucun pointage d\'arrivée trouvé'
+      });
+      return;
+    }
+
+    if (!todayEntry.checkOut) {
+      res.status(400).json({
+        success: false,
+        message: 'La journée est déjà en cours, inutile de reprendre'
+      });
+      return;
+    }
+
+    // Enregistrer la période entre l'ancien départ et maintenant comme une grande pause
+    const previousCheckOut = todayEntry.checkOut;
+    const breakDurationMinutes = (now.getTime() - previousCheckOut.getTime()) / (1000 * 60);
+
+    todayEntry.breaks.push({
+      start: previousCheckOut,
+      end: now,
+      duration: breakDurationMinutes
+    });
+
+    // Réouvrir la journée : on supprime le départ et on indique que le travail reprend
+    todayEntry.checkOut = undefined;
+    todayEntry.isPaused = false;
+    todayEntry.lastResumeTime = now;
+
+    // Recalculer les heures pour l'entrée
+    if (typeof (TimeTracking as any).calculateEntryHours === 'function') {
+      (TimeTracking as any).calculateEntryHours(todayEntry);
+    }
+
+    await tracking.save();
+
+    res.json({
+      success: true,
+      message: 'Travail repris pour compléter les 8h',
+      data: {
+        resumeTime: now,
+        entry: todayEntry
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la reprise du travail après départ:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la reprise du travail après départ'
     });
   }
 };

@@ -4,6 +4,7 @@ import {
   checkOut,
   startPause,
   resumeWork,
+  continueWork,
   getRealTimeStatus,
   getHistory,
   getCurrentMonthTracking,
@@ -24,6 +25,7 @@ router.post('/checkin', checkIn);
 router.post('/checkout', checkOut);
 router.post('/pause', startPause);
 router.post('/resume', resumeWork);
+router.post('/continue', continueWork);
 router.get('/realtime-status', getRealTimeStatus);
 router.get('/history', getHistory);
 router.get('/current-month', getCurrentMonthTracking);
