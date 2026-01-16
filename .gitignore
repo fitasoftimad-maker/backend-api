@@ -106,3 +106,7 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# TypeScript build info
+*.tsbuildinfo
+tsconfig.tsbuildinfo
