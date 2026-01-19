@@ -303,6 +303,79 @@ export const duplicateWidget = async (req: Request, res: Response<IApiResponse>)
   }
 };
 
+// @desc    Obtenir tous les utilisateurs (Admin only)
+// @route   GET /api/dashboard/all-users
+// @access  Private (Admin only)
+export const getAllUsers = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    if (req.user!.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Accès non autorisé'
+      });
+      return;
+    }
+
+    const users = await User.find({})
+      .select('firstName lastName email username role isActive cin contractType cinRecto cinVerso createdAt lastLogin')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      message: 'Utilisateurs récupérés',
+      data: { users }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des utilisateurs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des utilisateurs'
+    });
+  }
+};
+
+// @desc    Supprimer un utilisateur (Admin only)
+// @route   DELETE /api/dashboard/users/:id
+// @access  Private (Admin only)
+export const deleteUser = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    if (req.user!.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Accès non autorisé'
+      });
+      return;
+    }
+
+    const { id } = req.params;
+
+    // Vérifier que l'utilisateur n'est pas en train de se supprimer lui-même
+    if (id === req.user!._id.toString()) {
+      res.status(400).json({
+        success: false,
+        message: 'Vous ne pouvez pas vous supprimer vous-même'
+      });
+      return;
+    }
+
+    // Supprimer l'utilisateur et ses données associées
+    await User.findByIdAndDelete(id);
+    await Dashboard.deleteMany({ user: id });
+    await TimeTracking.deleteMany({ user: id });
+
+    res.json({
+      success: true,
+      message: 'Utilisateur supprimé avec succès'
+    });
+  } catch (error) {
+    console.error('Erreur lors de la suppression de l\'utilisateur:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la suppression de l\'utilisateur'
+    });
+  }
+};
+
 // @desc    Obtenir les statistiques du dashboard (Admin only)
 // @route   GET /api/dashboard/stats
 // @access  Private (Admin only)

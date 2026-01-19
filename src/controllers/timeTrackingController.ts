@@ -421,6 +421,54 @@ export const getCurrentMonthTracking = async (req: Request, res: Response<IApiRe
   }
 };
 
+// @desc    Obtenir l'historique d'un utilisateur spécifique (Admin only)
+// @route   GET /api/timetracking/user-history/:userId
+// @access  Private (Admin only)
+export const getUserHistory = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    if (req.user!.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Accès non autorisé'
+      });
+      return;
+    }
+
+    const { userId } = req.params;
+    const { month, year } = req.query;
+
+    const targetMonth = parseInt(month as string) || new Date().getMonth() + 1;
+    const targetYear = parseInt(year as string) || new Date().getFullYear();
+
+    const tracking = await TimeTracking.findOne({
+      user: userId,
+      month: targetMonth,
+      year: targetYear
+    });
+
+    const entries = tracking ? tracking.entries : [];
+
+    res.json({
+      success: true,
+      message: 'Historique utilisateur récupéré',
+      data: {
+        tracking: {
+          entries,
+          totalHoursMonth: tracking?.totalHoursMonth || 0,
+          month: targetMonth,
+          year: targetYear
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération de l\'historique utilisateur:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération de l\'historique utilisateur'
+    });
+  }
+};
+
 // @desc    Obtenir le suivi de tous les utilisateurs (Admin only)
 // @route   GET /api/timetracking/all-users
 // @access  Private (Admin only)

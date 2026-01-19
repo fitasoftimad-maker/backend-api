@@ -8,7 +8,8 @@ import {
   getRealTimeStatus,
   getHistory,
   getCurrentMonthTracking,
-  getAllUsersTracking
+  getAllUsersTracking,
+  getUserHistory
 } from '../controllers/timeTrackingController';
 
 import {
@@ -32,5 +33,6 @@ router.get('/current-month', getCurrentMonthTracking);
 
 // Routes admin uniquement
 router.get('/all-users', authorizeRole(['admin']), getAllUsersTracking);
+router.get('/user-history/:userId', authorizeRole(['admin']), getUserHistory);
 
 export default router;

@@ -7,7 +7,9 @@ import {
   deleteWidget,
   updatePositions,
   duplicateWidget,
-  getDashboardStats
+  getDashboardStats,
+  getAllUsers,
+  deleteUser
 } from '../controllers/dashboardController';
 
 import {
@@ -51,5 +53,7 @@ router.post('/widgets/:id/duplicate', duplicateWidget);
 
 // Routes admin uniquement
 router.get('/stats', authorizeRole(['admin']), getDashboardStats);
+router.get('/all-users', authorizeRole(['admin']), getAllUsers);
+router.delete('/users/:id', authorizeRole(['admin']), deleteUser);
 
 export default router;
