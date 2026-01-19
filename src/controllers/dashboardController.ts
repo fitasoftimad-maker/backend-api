@@ -15,6 +15,9 @@ export const getDashboard = async (req: Request, res: Response<IApiResponse>): P
     let widgets = [];
     let stats = {};
 
+    // Récupérer les informations de l'utilisateur connecté (pour tous les rôles)
+    const currentUser = await User.findById(userId).select('firstName lastName email cin contractType cinRecto cinVerso role createdAt lastLogin');
+
     if (userRole === 'admin') {
       // Dashboard Admin : voir tous les utilisateurs et leurs activités
       const totalUsers = await User.countDocuments();
@@ -46,6 +49,18 @@ export const getDashboard = async (req: Request, res: Response<IApiResponse>): P
       widgets = await Dashboard.find({ user: userId }).sort({ position: 1 });
 
       stats = {
+        currentUser: {
+          id: currentUser?._id?.toString(),
+          firstName: currentUser?.firstName,
+          lastName: currentUser?.lastName,
+          email: currentUser?.email,
+          cin: currentUser?.cin,
+          contractType: currentUser?.contractType,
+          cinRecto: currentUser?.cinRecto,
+          cinVerso: currentUser?.cinVerso,
+          role: currentUser?.role,
+          createdAt: currentUser?.createdAt
+        },
         totalUsers,
         activeUsers,
         adminUsers,
@@ -56,9 +71,6 @@ export const getDashboard = async (req: Request, res: Response<IApiResponse>): P
     } else {
       // Dashboard User : voir son profil, ses projets, et pointage
       widgets = await Dashboard.find({ user: userId }).sort({ position: 1 });
-
-      // Récupérer les informations de l'utilisateur connecté
-      const currentUser = await User.findById(userId).select('firstName lastName email cin contractType cinRecto cinVerso role createdAt lastLogin');
 
       // Statistiques personnelles de pointage
       const now = new Date();
