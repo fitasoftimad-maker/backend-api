@@ -1,5 +1,8 @@
 import express from 'express';
 import { body } from 'express-validator';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import {
   register,
   login,
@@ -15,10 +18,45 @@ import {
   validatePasswordStrength
 } from '../middleware/auth';
 
+// Configuration multer pour l'upload des images CIN
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads/cin');
+    // Créer le dossier s'il n'existe pas
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // Générer un nom unique pour le fichier
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB max
+  },
+  fileFilter: (req, file, cb) => {
+    // Accepter seulement les images
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Seules les images sont autorisées'));
+    }
+  }
+});
+
 const router = express.Router();
 
 // Routes publiques
-router.post('/register', [
+router.post('/register', upload.fields([
+  { name: 'cinRecto', maxCount: 1 },
+  { name: 'cinVerso', maxCount: 1 }
+]), [
   body('email')
     .isEmail()
     .withMessage('Veuillez fournir un email valide')

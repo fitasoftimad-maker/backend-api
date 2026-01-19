@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import path from 'path';
 
 import authRoutes from './routes/auth';
 import dashboardRoutes from './routes/dashboard';
@@ -75,6 +76,9 @@ app.use(morgan('combined'));
 // Body parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Servir les fichiers statiques uploadés
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes API
 app.use('/api/auth', authRoutes);

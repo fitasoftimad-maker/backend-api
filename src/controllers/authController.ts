@@ -1,9 +1,45 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import User, { IUserDocument } from '../models/User';
 import Dashboard from '../models/Dashboard';
+import TimeTracking from '../models/TimeTracking';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { IAuthRequest, ILoginRequest, IUpdateProfileRequest, IChangePasswordRequest, IApiResponse } from '../types';
+
+// Configuration multer pour l'upload des images CIN
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads/cin');
+    // Créer le dossier s'il n'existe pas
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // Générer un nom unique pour le fichier
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB max
+  },
+  fileFilter: (req, file, cb) => {
+    // Accepter seulement les images
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Seules les images sont autorisées'));
+    }
+  }
+});
 
 // Générer un token JWT
 const generateToken = (id: string, role: string): string => {
@@ -18,6 +54,7 @@ const generateToken = (id: string, role: string): string => {
 export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res: Response<IApiResponse>): Promise<void> => {
   try {
     console.log('🔍 Requête d\'inscription reçue:', req.body);
+    console.log('🔍 Fichiers reçus:', req.files);
     const errors = validationResult(req);
     console.log('🔍 Erreurs de validation:', errors.array());
 
@@ -64,6 +101,10 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
       return;
     }
 
+    // Préparer les chemins des images CIN
+    const cinRectoPath = (req.files as any)?.cinRecto?.[0]?.path;
+    const cinVersoPath = (req.files as any)?.cinVerso?.[0]?.path;
+
     // Créer l'utilisateur avec le rôle spécifié
     const user: IUserDocument = await User.create({
       username,
@@ -73,6 +114,8 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
       lastName,
       cin,
       contractType,
+      cinRecto: cinRectoPath ? `/uploads/cin/${path.basename(cinRectoPath)}` : null,
+      cinVerso: cinVersoPath ? `/uploads/cin/${path.basename(cinVersoPath)}` : null,
       role: role || 'user' // Par défaut user si pas spécifié
     });
 
