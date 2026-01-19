@@ -42,6 +42,18 @@ router.post('/register', [
     .withMessage('Le nom ne peut pas dépasser 50 caractères')
     .trim(),
 
+  body('cin')
+    .optional()
+    .isLength({ min: 1, max: 20 })
+    .withMessage('Le numéro CIN doit contenir entre 1 et 20 caractères')
+    .matches(/^[0-9]+$/)
+    .withMessage('Le numéro CIN ne peut contenir que des chiffres'),
+
+  body('contractType')
+    .optional()
+    .isIn(['CDI', 'CDD', 'Stagiaire', 'Autre'])
+    .withMessage('Le type de contrat doit être CDI, CDD, Stagiaire ou Autre'),
+
   body('role')
     .optional()
     .isIn(['user', 'admin'])

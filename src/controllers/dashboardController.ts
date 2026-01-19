@@ -57,6 +57,9 @@ export const getDashboard = async (req: Request, res: Response<IApiResponse>): P
       // Dashboard User : voir son profil, ses projets, et pointage
       widgets = await Dashboard.find({ user: userId }).sort({ position: 1 });
 
+      // Récupérer les informations de l'utilisateur connecté
+      const currentUser = await User.findById(userId).select('firstName lastName email cin contractType cinRecto cinVerso role createdAt lastLogin');
+
       // Statistiques personnelles de pointage
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
@@ -82,6 +85,18 @@ export const getDashboard = async (req: Request, res: Response<IApiResponse>): P
       };
 
       stats = {
+        currentUser: {
+          id: currentUser?._id?.toString(),
+          firstName: currentUser?.firstName,
+          lastName: currentUser?.lastName,
+          email: currentUser?.email,
+          cin: currentUser?.cin,
+          contractType: currentUser?.contractType,
+          cinRecto: currentUser?.cinRecto,
+          cinVerso: currentUser?.cinVerso,
+          role: currentUser?.role,
+          createdAt: currentUser?.createdAt
+        },
         monthlyStats,
         todayCheckIn: null, // Sera géré côté frontend
         todayCheckOut: null

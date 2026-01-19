@@ -31,7 +31,16 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
       return;
     }
 
-    const { email, password, firstName, lastName, role } = req.body;
+    const { email, password, confirmPassword, firstName, lastName, cin, contractType, role } = req.body;
+
+    // Vérifier que les mots de passe correspondent
+    if (password !== confirmPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'Les mots de passe ne correspondent pas'
+      });
+      return;
+    }
 
     // Générer automatiquement un username unique basé sur firstName et lastName
     const baseUsername = `${firstName?.toLowerCase().replace(/\s+/g, '') || 'user'}${lastName?.toLowerCase().replace(/\s+/g, '') || ''}`;
@@ -62,6 +71,8 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
       password,
       firstName,
       lastName,
+      cin,
+      contractType,
       role: role || 'user' // Par défaut user si pas spécifié
     });
 
@@ -81,6 +92,10 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
+          cin: user.cin,
+          cinRecto: user.cinRecto,
+          cinVerso: user.cinVerso,
+          contractType: user.contractType,
           role: user.role,
           avatar: user.avatar
         },
@@ -171,6 +186,10 @@ export const login = async (req: Request<{}, IApiResponse, ILoginRequest>, res: 
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
+          cin: user.cin,
+          cinRecto: user.cinRecto,
+          cinVerso: user.cinVerso,
+          contractType: user.contractType,
           role: user.role,
           avatar: user.avatar,
           lastLogin: user.lastLogin
@@ -206,6 +225,10 @@ export const getProfile = async (req: Request, res: Response<IApiResponse>): Pro
           email: user!.email,
           firstName: user!.firstName,
           lastName: user!.lastName,
+          cin: user!.cin,
+          cinRecto: user!.cinRecto,
+          cinVerso: user!.cinVerso,
+          contractType: user!.contractType,
           role: user!.role,
           avatar: user!.avatar,
           lastLogin: user!.lastLogin,
@@ -237,7 +260,7 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
       return;
     }
 
-    const { username, email, firstName, lastName, avatar } = req.body;
+    const { username, email, firstName, lastName, cin, contractType, avatar } = req.body;
 
     // Vérifier si le nouveau username/email est déjà pris
     const existingUser = await User.findOne({
@@ -259,7 +282,7 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
 
     const updatedUser = await User.findByIdAndUpdate(
       req.user!._id,
-      { username, email, firstName, lastName, avatar },
+      { username, email, firstName, lastName, cin, contractType, avatar },
       { new: true, runValidators: true }
     );
 
@@ -273,6 +296,10 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
           email: updatedUser!.email,
           firstName: updatedUser!.firstName,
           lastName: updatedUser!.lastName,
+          cin: updatedUser!.cin,
+          cinRecto: updatedUser!.cinRecto,
+          cinVerso: updatedUser!.cinVerso,
+          contractType: updatedUser!.contractType,
           role: updatedUser!.role,
           avatar: updatedUser!.avatar
         }

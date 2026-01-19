@@ -8,6 +8,10 @@ export interface IUserDocument extends Document {
   password: string;
   firstName?: string;
   lastName?: string;
+  cin?: string;
+  cinRecto?: string;
+  cinVerso?: string;
+  contractType?: 'CDI' | 'CDD' | 'Stagiaire' | 'Autre';
   avatar?: string;
   role: 'user' | 'admin';
   isActive?: boolean;
@@ -26,7 +30,7 @@ export interface IUserModel extends Model<IUserDocument> {
   createDefaultAdmin(): Promise<void>;
 }
 
-const userSchema: Schema<IUserDocument> = new Schema({
+const userSchema = new Schema({
   username: {
     type: String,
     required: [true, 'Le nom d\'utilisateur est requis'],
@@ -41,10 +45,12 @@ const userSchema: Schema<IUserDocument> = new Schema({
     unique: true,
     lowercase: true,
     trim: true,
-    match: [
-      /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-      'Veuillez fournir un email valide'
-    ]
+    validate: {
+      validator: function(email: string) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      },
+      message: 'Veuillez fournir un email valide'
+    }
   },
   password: {
     type: String,
@@ -66,6 +72,25 @@ const userSchema: Schema<IUserDocument> = new Schema({
     type: String,
     trim: true,
     maxlength: [50, 'Le nom ne peut pas dépasser 50 caractères']
+  },
+  cin: {
+    type: String,
+    trim: true,
+    maxlength: [20, 'Le numéro CIN ne peut pas dépasser 20 caractères'],
+    match: [/^[0-9]+$/, 'Le numéro CIN ne peut contenir que des chiffres']
+  },
+  cinRecto: {
+    type: String,
+    default: null
+  },
+  cinVerso: {
+    type: String,
+    default: null
+  },
+  contractType: {
+    type: String,
+    enum: ['CDI', 'CDD', 'Stagiaire', 'Autre'],
+    default: null
   },
   avatar: {
     type: String,
@@ -173,4 +198,4 @@ userSchema.statics.createDefaultAdmin = async function() {
   }
 };
 
-export default mongoose.model<IUserDocument, IUserModel>('User', userSchema);
+export default mongoose.model('User', userSchema) as unknown as IUserModel;

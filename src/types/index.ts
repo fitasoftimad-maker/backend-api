@@ -11,8 +11,11 @@ export interface IAuthRequest {
   username?: string;
   email: string;
   password: string;
+  confirmPassword?: string;
   firstName: string;
   lastName: string;
+  cin?: string;
+  contractType?: 'CDI' | 'CDD' | 'Stagiaire' | 'Autre';
   role?: 'user' | 'admin';
 }
 
@@ -26,6 +29,8 @@ export interface IUpdateProfileRequest {
   email?: string;
   firstName?: string;
   lastName?: string;
+  cin?: string;
+  contractType?: 'CDI' | 'CDD' | 'Stagiaire' | 'Autre';
   avatar?: string;
 }
 
@@ -41,6 +46,10 @@ export interface IUser {
   password: string;
   firstName?: string;
   lastName?: string;
+  cin?: string;
+  cinRecto?: string;
+  cinVerso?: string;
+  contractType?: 'CDI' | 'CDD' | 'Stagiaire' | 'Autre';
   avatar?: string;
   role: 'user' | 'admin';
   isActive?: boolean;
