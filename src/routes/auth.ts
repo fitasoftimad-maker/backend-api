@@ -8,12 +8,14 @@ import {
   login,
   getProfile,
   updateProfile,
+  updateUserProfile,
   changePassword,
   logout
 } from '../controllers/authController';
 
 import {
   authenticateToken,
+  authorizeRole,
   loginLimiter,
   validatePasswordStrength
 } from '../middleware/auth';
@@ -114,7 +116,10 @@ router.use(authenticateToken); // Toutes les routes suivantes nécessitent une a
 
 router.get('/profile', getProfile);
 
-router.put('/profile', [
+router.put('/profile', upload.fields([
+  { name: 'cinRecto', maxCount: 1 },
+  { name: 'cinVerso', maxCount: 1 }
+]), [
   body('username')
     .optional()
     .isLength({ min: 3, max: 50 })
@@ -138,8 +143,56 @@ router.put('/profile', [
     .optional()
     .isLength({ max: 50 })
     .withMessage('Le nom ne peut pas dépasser 50 caractères')
-    .trim()
+    .trim(),
+
+  body('cin')
+    .optional()
+    .isLength({ min: 1, max: 20 })
+    .withMessage('Le numéro CIN doit contenir entre 1 et 20 caractères')
+    .matches(/^[0-9]+$/)
+    .withMessage('Le numéro CIN ne peut contenir que des chiffres'),
+
+  body('contractType')
+    .optional()
+    .isIn(['CDI', 'CDD', 'Stagiaire', 'Autre'])
+    .withMessage('Le type de contrat doit être CDI, CDD, Stagiaire ou Autre')
 ], updateProfile);
+
+// Route pour mettre à jour le profil d'un utilisateur spécifique (Admin only)
+router.put('/profile/:userId', authorizeRole(['admin']), upload.fields([
+  { name: 'cinRecto', maxCount: 1 },
+  { name: 'cinVerso', maxCount: 1 }
+]), [
+  body('email')
+    .optional()
+    .isEmail()
+    .withMessage('Veuillez fournir un email valide')
+    .normalizeEmail(),
+
+  body('firstName')
+    .optional()
+    .isLength({ max: 50 })
+    .withMessage('Le prénom ne peut pas dépasser 50 caractères')
+    .trim(),
+
+  body('lastName')
+    .optional()
+    .isLength({ max: 50 })
+    .withMessage('Le nom ne peut pas dépasser 50 caractères')
+    .trim(),
+
+  body('cin')
+    .optional()
+    .isLength({ min: 1, max: 20 })
+    .withMessage('Le numéro CIN doit contenir entre 1 et 20 caractères')
+    .matches(/^[0-9]+$/)
+    .withMessage('Le numéro CIN ne peut contenir que des chiffres'),
+
+  body('contractType')
+    .optional()
+    .isIn(['CDI', 'CDD', 'Stagiaire', 'Autre'])
+    .withMessage('Le type de contrat doit être CDI, CDD, Stagiaire ou Autre')
+], updateUserProfile);
 
 router.put('/change-password', [
   body('currentPassword')

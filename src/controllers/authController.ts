@@ -401,6 +401,88 @@ export const changePassword = async (req: Request<{}, IApiResponse, IChangePassw
   }
 };
 
+// @desc    Mettre à jour le profil d'un utilisateur spécifique (Admin only)
+// @route   PUT /api/auth/profile/:userId
+// @access  Private (Admin only)
+export const updateUserProfile = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    if (req.user!.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Accès non autorisé'
+      });
+      return;
+    }
+
+    const { userId } = req.params;
+    const { email, firstName, lastName, cin, contractType } = req.body;
+
+    // Vérifier que l'utilisateur existe
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+      return;
+    }
+
+    // Vérifier que le nouvel email n'est pas déjà pris (si changé)
+    if (email && email !== user.email) {
+      const existingUser = await User.findOne({ email, _id: { $ne: userId } });
+      if (existingUser) {
+        res.status(400).json({
+          success: false,
+          message: 'Cet email est déjà utilisé'
+        });
+        return;
+      }
+    }
+
+    // Préparer les chemins des images CIN
+    const cinRectoPath = (req.files as any)?.cinRecto?.[0]?.path;
+    const cinVersoPath = (req.files as any)?.cinVerso?.[0]?.path;
+
+    // Mettre à jour l'utilisateur
+    const updateData: any = {};
+    if (email) updateData.email = email;
+    if (firstName) updateData.firstName = firstName;
+    if (lastName) updateData.lastName = lastName;
+    if (cin !== undefined) updateData.cin = cin;
+    if (contractType) updateData.contractType = contractType;
+    if (cinRectoPath) updateData.cinRecto = `/uploads/cin/${path.basename(cinRectoPath)}`;
+    if (cinVersoPath) updateData.cinVerso = `/uploads/cin/${path.basename(cinVersoPath)}`;
+
+    const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true });
+
+    res.json({
+      success: true,
+      message: 'Profil utilisateur mis à jour avec succès',
+      data: {
+        user: {
+          id: updatedUser!._id.toString(),
+          username: updatedUser!.username,
+          email: updatedUser!.email,
+          firstName: updatedUser!.firstName,
+          lastName: updatedUser!.lastName,
+          cin: updatedUser!.cin,
+          cinRecto: updatedUser!.cinRecto,
+          cinVerso: updatedUser!.cinVerso,
+          contractType: updatedUser!.contractType,
+          role: updatedUser!.role,
+          createdAt: updatedUser!.createdAt
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du profil utilisateur:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la mise à jour du profil'
+    });
+  }
+};
+
 // @desc    Déconnexion (côté serveur - token reste valide)
 // @route   POST /api/auth/logout
 // @access  Private
