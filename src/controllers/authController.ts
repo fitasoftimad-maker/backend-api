@@ -323,9 +323,25 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
       return;
     }
 
+    // Préparer les chemins des images CIN
+    const cinRectoPath = (req.files as any)?.cinRecto?.[0]?.path;
+    const cinVersoPath = (req.files as any)?.cinVerso?.[0]?.path;
+
+    // Préparer les données de mise à jour
+    const updateData: any = {};
+    if (username !== undefined) updateData.username = username;
+    if (email !== undefined) updateData.email = email;
+    if (firstName !== undefined) updateData.firstName = firstName;
+    if (lastName !== undefined) updateData.lastName = lastName;
+    if (cin !== undefined) updateData.cin = cin;
+    if (contractType !== undefined) updateData.contractType = contractType;
+    if (avatar !== undefined) updateData.avatar = avatar;
+    if (cinRectoPath) updateData.cinRecto = `/uploads/cin/${path.basename(cinRectoPath)}`;
+    if (cinVersoPath) updateData.cinVerso = `/uploads/cin/${path.basename(cinVersoPath)}`;
+
     const updatedUser = await User.findByIdAndUpdate(
       req.user!._id,
-      { username, email, firstName, lastName, cin, contractType, avatar },
+      updateData,
       { new: true, runValidators: true }
     );
 
