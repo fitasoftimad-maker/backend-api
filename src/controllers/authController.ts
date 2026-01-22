@@ -1,45 +1,11 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import User, { IUserDocument } from '../models/User';
 import Dashboard from '../models/Dashboard';
 import TimeTracking from '../models/TimeTracking';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { IAuthRequest, ILoginRequest, IUpdateProfileRequest, IChangePasswordRequest, IApiResponse } from '../types';
-
-// Configuration multer pour l'upload des images CIN
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads/cin');
-    // Créer le dossier s'il n'existe pas
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Générer un nom unique pour le fichier
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB max
-  },
-  fileFilter: (req, file, cb) => {
-    // Accepter seulement les images
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Seules les images sont autorisées'));
-    }
-  }
-});
 
 // Générer un token JWT
 const generateToken = (id: string, role: string): string => {
@@ -101,9 +67,18 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
       return;
     }
 
-    // Préparer les chemins des images CIN
-    const cinRectoPath = (req.files as any)?.cinRecto?.[0]?.path;
-    const cinVersoPath = (req.files as any)?.cinVerso?.[0]?.path;
+    const cinRectoFile = (req.files as any)?.cinRecto?.[0];
+    const cinVersoFile = (req.files as any)?.cinVerso?.[0];
+
+    let cinRectoBase64 = null;
+    let cinVersoBase64 = null;
+
+    if (cinRectoFile) {
+      cinRectoBase64 = `data:${cinRectoFile.mimetype};base64,${cinRectoFile.buffer.toString('base64')}`;
+    }
+    if (cinVersoFile) {
+      cinVersoBase64 = `data:${cinVersoFile.mimetype};base64,${cinVersoFile.buffer.toString('base64')}`;
+    }
 
     // Créer l'utilisateur avec le rôle spécifié
     const user: IUserDocument = await User.create({
@@ -114,8 +89,8 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
       lastName,
       cin,
       contractType,
-      cinRecto: cinRectoPath ? `/uploads/cin/${path.basename(cinRectoPath)}` : null,
-      cinVerso: cinVersoPath ? `/uploads/cin/${path.basename(cinVersoPath)}` : null,
+      cinRecto: cinRectoBase64,
+      cinVerso: cinVersoBase64,
       role: role || 'user' // Par défaut user si pas spécifié
     });
 
@@ -136,8 +111,8 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
           firstName: user.firstName,
           lastName: user.lastName,
           cin: user.cin,
-          cinRecto: user.cinRecto,
-          cinVerso: user.cinVerso,
+          cinRecto: user.cinRecto || null,
+          cinVerso: user.cinVerso || null,
           contractType: user.contractType,
           role: user.role,
           avatar: user.avatar
@@ -230,8 +205,8 @@ export const login = async (req: Request<{}, IApiResponse, ILoginRequest>, res: 
           firstName: user.firstName,
           lastName: user.lastName,
           cin: user.cin,
-          cinRecto: user.cinRecto,
-          cinVerso: user.cinVerso,
+          cinRecto: user.cinRecto || null,
+          cinVerso: user.cinVerso || null,
           contractType: user.contractType,
           role: user.role,
           avatar: user.avatar,
@@ -269,8 +244,8 @@ export const getProfile = async (req: Request, res: Response<IApiResponse>): Pro
           firstName: user!.firstName,
           lastName: user!.lastName,
           cin: user!.cin,
-          cinRecto: user!.cinRecto,
-          cinVerso: user!.cinVerso,
+          cinRecto: user!.cinRecto || null,
+          cinVerso: user!.cinVerso || null,
           contractType: user!.contractType,
           role: user!.role,
           avatar: user!.avatar,
@@ -305,6 +280,16 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
 
     const { username, email, firstName, lastName, cin, contractType, avatar } = req.body;
 
+    // Récupérer l'utilisateur actuel pour préserver les images existantes
+    const currentUser = await User.findById(req.user!._id);
+    if (!currentUser) {
+      res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+      return;
+    }
+
     // Vérifier si le nouveau username/email est déjà pris
     const existingUser = await User.findOne({
       $or: [
@@ -323,9 +308,8 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
       return;
     }
 
-    // Préparer les chemins des images CIN
-    const cinRectoPath = (req.files as any)?.cinRecto?.[0]?.path;
-    const cinVersoPath = (req.files as any)?.cinVerso?.[0]?.path;
+    const cinRectoFile = (req.files as any)?.cinRecto?.[0];
+    const cinVersoFile = (req.files as any)?.cinVerso?.[0];
 
     // Préparer les données de mise à jour
     const updateData: any = {};
@@ -336,8 +320,21 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
     if (cin !== undefined) updateData.cin = cin;
     if (contractType !== undefined) updateData.contractType = contractType;
     if (avatar !== undefined) updateData.avatar = avatar;
-    if (cinRectoPath) updateData.cinRecto = `/uploads/cin/${path.basename(cinRectoPath)}`;
-    if (cinVersoPath) updateData.cinVerso = `/uploads/cin/${path.basename(cinVersoPath)}`;
+    
+    // Préserver les images existantes si aucun nouveau fichier n'est fourni
+    if (cinRectoFile) {
+      updateData.cinRecto = `data:${cinRectoFile.mimetype};base64,${cinRectoFile.buffer.toString('base64')}`;
+    } else {
+      // Préserver l'image existante si elle existe
+      updateData.cinRecto = currentUser.cinRecto || null;
+    }
+    
+    if (cinVersoFile) {
+      updateData.cinVerso = `data:${cinVersoFile.mimetype};base64,${cinVersoFile.buffer.toString('base64')}`;
+    } else {
+      // Préserver l'image existante si elle existe
+      updateData.cinVerso = currentUser.cinVerso || null;
+    }
 
     const updatedUser = await User.findByIdAndUpdate(
       req.user!._id,
@@ -356,8 +353,8 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
           firstName: updatedUser!.firstName,
           lastName: updatedUser!.lastName,
           cin: updatedUser!.cin,
-          cinRecto: updatedUser!.cinRecto,
-          cinVerso: updatedUser!.cinVerso,
+          cinRecto: updatedUser!.cinRecto || null,
+          cinVerso: updatedUser!.cinVerso || null,
           contractType: updatedUser!.contractType,
           role: updatedUser!.role,
           avatar: updatedUser!.avatar
@@ -455,9 +452,8 @@ export const updateUserProfile = async (req: Request, res: Response<IApiResponse
       }
     }
 
-    // Préparer les chemins des images CIN
-    const cinRectoPath = (req.files as any)?.cinRecto?.[0]?.path;
-    const cinVersoPath = (req.files as any)?.cinVerso?.[0]?.path;
+    const cinRectoFile = (req.files as any)?.cinRecto?.[0];
+    const cinVersoFile = (req.files as any)?.cinVerso?.[0];
 
     // Mettre à jour l'utilisateur
     const updateData: any = {};
@@ -466,8 +462,21 @@ export const updateUserProfile = async (req: Request, res: Response<IApiResponse
     if (lastName) updateData.lastName = lastName;
     if (cin !== undefined) updateData.cin = cin;
     if (contractType) updateData.contractType = contractType;
-    if (cinRectoPath) updateData.cinRecto = `/uploads/cin/${path.basename(cinRectoPath)}`;
-    if (cinVersoPath) updateData.cinVerso = `/uploads/cin/${path.basename(cinVersoPath)}`;
+    
+    // Préserver les images existantes si aucun nouveau fichier n'est fourni
+    if (cinRectoFile) {
+      updateData.cinRecto = `data:${cinRectoFile.mimetype};base64,${cinRectoFile.buffer.toString('base64')}`;
+    } else {
+      // Préserver l'image existante si elle existe
+      updateData.cinRecto = user.cinRecto || null;
+    }
+    
+    if (cinVersoFile) {
+      updateData.cinVerso = `data:${cinVersoFile.mimetype};base64,${cinVersoFile.buffer.toString('base64')}`;
+    } else {
+      // Préserver l'image existante si elle existe
+      updateData.cinVerso = user.cinVerso || null;
+    }
 
     const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true });
 
@@ -482,8 +491,8 @@ export const updateUserProfile = async (req: Request, res: Response<IApiResponse
           firstName: updatedUser!.firstName,
           lastName: updatedUser!.lastName,
           cin: updatedUser!.cin,
-          cinRecto: updatedUser!.cinRecto,
-          cinVerso: updatedUser!.cinVerso,
+          cinRecto: updatedUser!.cinRecto || null,
+          cinVerso: updatedUser!.cinVerso || null,
           contractType: updatedUser!.contractType,
           role: updatedUser!.role,
           createdAt: updatedUser!.createdAt
