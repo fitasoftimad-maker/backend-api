@@ -73,11 +73,28 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
     let cinRectoBase64 = null;
     let cinVersoBase64 = null;
 
-    if (cinRectoFile) {
-      cinRectoBase64 = `data:${cinRectoFile.mimetype};base64,${cinRectoFile.buffer.toString('base64')}`;
-    }
-    if (cinVersoFile) {
-      cinVersoBase64 = `data:${cinVersoFile.mimetype};base64,${cinVersoFile.buffer.toString('base64')}`;
+    try {
+      if (cinRectoFile) {
+        console.log('📸 Traitement CIN Recto:', {
+          filename: cinRectoFile.originalname,
+          mimetype: cinRectoFile.mimetype,
+          size: cinRectoFile.size
+        });
+        cinRectoBase64 = `data:${cinRectoFile.mimetype};base64,${cinRectoFile.buffer.toString('base64')}`;
+        console.log('✅ CIN Recto converti en base64, longueur:', cinRectoBase64.length);
+      }
+      if (cinVersoFile) {
+        console.log('📸 Traitement CIN Verso:', {
+          filename: cinVersoFile.originalname,
+          mimetype: cinVersoFile.mimetype,
+          size: cinVersoFile.size
+        });
+        cinVersoBase64 = `data:${cinVersoFile.mimetype};base64,${cinVersoFile.buffer.toString('base64')}`;
+        console.log('✅ CIN Verso converti en base64, longueur:', cinVersoBase64.length);
+      }
+    } catch (fileError: any) {
+      console.error('❌ Erreur lors du traitement des fichiers CIN:', fileError);
+      throw new Error(`Erreur lors du traitement des images CIN: ${fileError.message}`);
     }
 
     // Créer l'utilisateur avec le rôle spécifié
@@ -122,11 +139,19 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
     };
 
     res.status(201).json(response);
-  } catch (error) {
-    console.error('Erreur lors de l\'inscription:', error);
+  } catch (error: any) {
+    console.error('❌ Erreur lors de l\'inscription:', error);
+    console.error('❌ Stack trace:', error?.stack);
+    console.error('❌ Détails:', {
+      message: error?.message,
+      name: error?.name,
+      code: error?.code
+    });
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de l\'inscription'
+      message: process.env.NODE_ENV === 'development' 
+        ? `Erreur serveur lors de l'inscription: ${error?.message || 'Erreur inconnue'}`
+        : 'Erreur serveur lors de l\'inscription'
     });
   }
 };
@@ -321,19 +346,39 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
     if (contractType !== undefined) updateData.contractType = contractType;
     if (avatar !== undefined) updateData.avatar = avatar;
     
-    // Préserver les images existantes si aucun nouveau fichier n'est fourni
-    if (cinRectoFile) {
-      updateData.cinRecto = `data:${cinRectoFile.mimetype};base64,${cinRectoFile.buffer.toString('base64')}`;
-    } else {
-      // Préserver l'image existante si elle existe
-      updateData.cinRecto = currentUser.cinRecto || null;
-    }
-    
-    if (cinVersoFile) {
-      updateData.cinVerso = `data:${cinVersoFile.mimetype};base64,${cinVersoFile.buffer.toString('base64')}`;
-    } else {
-      // Préserver l'image existante si elle existe
-      updateData.cinVerso = currentUser.cinVerso || null;
+    // Traiter les images CIN
+    try {
+      // Préserver les images existantes si aucun nouveau fichier n'est fourni
+      if (cinRectoFile) {
+        console.log('📸 Mise à jour CIN Recto:', {
+          filename: cinRectoFile.originalname,
+          mimetype: cinRectoFile.mimetype,
+          size: cinRectoFile.size
+        });
+        updateData.cinRecto = `data:${cinRectoFile.mimetype};base64,${cinRectoFile.buffer.toString('base64')}`;
+        console.log('✅ CIN Recto mis à jour, longueur:', updateData.cinRecto.length);
+      } else {
+        // Préserver l'image existante si elle existe
+        updateData.cinRecto = currentUser.cinRecto || null;
+        console.log('📋 CIN Recto préservé:', currentUser.cinRecto ? 'Oui' : 'Non');
+      }
+      
+      if (cinVersoFile) {
+        console.log('📸 Mise à jour CIN Verso:', {
+          filename: cinVersoFile.originalname,
+          mimetype: cinVersoFile.mimetype,
+          size: cinVersoFile.size
+        });
+        updateData.cinVerso = `data:${cinVersoFile.mimetype};base64,${cinVersoFile.buffer.toString('base64')}`;
+        console.log('✅ CIN Verso mis à jour, longueur:', updateData.cinVerso.length);
+      } else {
+        // Préserver l'image existante si elle existe
+        updateData.cinVerso = currentUser.cinVerso || null;
+        console.log('📋 CIN Verso préservé:', currentUser.cinVerso ? 'Oui' : 'Non');
+      }
+    } catch (fileError: any) {
+      console.error('❌ Erreur lors du traitement des fichiers CIN:', fileError);
+      throw new Error(`Erreur lors du traitement des images CIN: ${fileError.message}`);
     }
 
     const updatedUser = await User.findByIdAndUpdate(
@@ -361,11 +406,20 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
         }
       }
     });
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour du profil:', error);
+  } catch (error: any) {
+    console.error('❌ Erreur lors de la mise à jour du profil:', error);
+    console.error('❌ Stack trace:', error?.stack);
+    console.error('❌ Détails:', {
+      message: error?.message,
+      name: error?.name,
+      code: error?.code,
+      userId: req.user!._id
+    });
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la mise à jour du profil'
+      message: process.env.NODE_ENV === 'development'
+        ? `Erreur serveur lors de la mise à jour du profil: ${error?.message || 'Erreur inconnue'}`
+        : 'Erreur serveur lors de la mise à jour du profil'
     });
   }
 };
@@ -463,19 +517,41 @@ export const updateUserProfile = async (req: Request, res: Response<IApiResponse
     if (cin !== undefined) updateData.cin = cin;
     if (contractType) updateData.contractType = contractType;
     
-    // Préserver les images existantes si aucun nouveau fichier n'est fourni
-    if (cinRectoFile) {
-      updateData.cinRecto = `data:${cinRectoFile.mimetype};base64,${cinRectoFile.buffer.toString('base64')}`;
-    } else {
-      // Préserver l'image existante si elle existe
-      updateData.cinRecto = user.cinRecto || null;
-    }
-    
-    if (cinVersoFile) {
-      updateData.cinVerso = `data:${cinVersoFile.mimetype};base64,${cinVersoFile.buffer.toString('base64')}`;
-    } else {
-      // Préserver l'image existante si elle existe
-      updateData.cinVerso = user.cinVerso || null;
+    // Traiter les images CIN
+    try {
+      // Préserver les images existantes si aucun nouveau fichier n'est fourni
+      if (cinRectoFile) {
+        console.log('📸 Admin - Mise à jour CIN Recto:', {
+          filename: cinRectoFile.originalname,
+          mimetype: cinRectoFile.mimetype,
+          size: cinRectoFile.size,
+          userId
+        });
+        updateData.cinRecto = `data:${cinRectoFile.mimetype};base64,${cinRectoFile.buffer.toString('base64')}`;
+        console.log('✅ CIN Recto mis à jour, longueur:', updateData.cinRecto.length);
+      } else {
+        // Préserver l'image existante si elle existe
+        updateData.cinRecto = user.cinRecto || null;
+        console.log('📋 CIN Recto préservé:', user.cinRecto ? 'Oui' : 'Non');
+      }
+      
+      if (cinVersoFile) {
+        console.log('📸 Admin - Mise à jour CIN Verso:', {
+          filename: cinVersoFile.originalname,
+          mimetype: cinVersoFile.mimetype,
+          size: cinVersoFile.size,
+          userId
+        });
+        updateData.cinVerso = `data:${cinVersoFile.mimetype};base64,${cinVersoFile.buffer.toString('base64')}`;
+        console.log('✅ CIN Verso mis à jour, longueur:', updateData.cinVerso.length);
+      } else {
+        // Préserver l'image existante si elle existe
+        updateData.cinVerso = user.cinVerso || null;
+        console.log('📋 CIN Verso préservé:', user.cinVerso ? 'Oui' : 'Non');
+      }
+    } catch (fileError: any) {
+      console.error('❌ Erreur lors du traitement des fichiers CIN:', fileError);
+      throw new Error(`Erreur lors du traitement des images CIN: ${fileError.message}`);
     }
 
     const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true });
@@ -499,11 +575,20 @@ export const updateUserProfile = async (req: Request, res: Response<IApiResponse
         }
       }
     });
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour du profil utilisateur:', error);
+  } catch (error: any) {
+    console.error('❌ Erreur lors de la mise à jour du profil utilisateur:', error);
+    console.error('❌ Stack trace:', error?.stack);
+    console.error('❌ Détails:', {
+      message: error?.message,
+      name: error?.name,
+      code: error?.code,
+      userId: req.params.userId
+    });
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la mise à jour du profil'
+      message: process.env.NODE_ENV === 'development'
+        ? `Erreur serveur lors de la mise à jour du profil: ${error?.message || 'Erreur inconnue'}`
+        : 'Erreur serveur lors de la mise à jour du profil'
     });
   }
 };

@@ -1,8 +1,6 @@
 import express from 'express';
 import { body } from 'express-validator';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import {
   register,
   login,
@@ -21,21 +19,7 @@ import {
 } from '../middleware/auth';
 
 // Configuration multer pour l'upload des images CIN
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads/cin');
-    // Créer le dossier s'il n'existe pas
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Générer un nom unique pour le fichier
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -52,13 +36,36 @@ const upload = multer({
   }
 });
 
+// Middleware pour gérer les erreurs multer
+const handleMulterError = (err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: 'Le fichier est trop volumineux. Taille maximale: 5MB'
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: `Erreur d'upload: ${err.message}`
+    });
+  }
+  if (err) {
+    return res.status(400).json({
+      success: false,
+      message: err.message || 'Erreur lors de l\'upload du fichier'
+    });
+  }
+  next();
+};
+
 const router = express.Router();
 
 // Routes publiques
 router.post('/register', upload.fields([
   { name: 'cinRecto', maxCount: 1 },
   { name: 'cinVerso', maxCount: 1 }
-]), [
+]), handleMulterError, [
   body('email')
     .isEmail()
     .withMessage('Veuillez fournir un email valide')
@@ -119,7 +126,7 @@ router.get('/profile', getProfile);
 router.put('/profile', upload.fields([
   { name: 'cinRecto', maxCount: 1 },
   { name: 'cinVerso', maxCount: 1 }
-]), [
+]), handleMulterError, [
   body('username')
     .optional()
     .isLength({ min: 3, max: 50 })
@@ -162,7 +169,7 @@ router.put('/profile', upload.fields([
 router.put('/profile/:userId', authorizeRole(['admin']), upload.fields([
   { name: 'cinRecto', maxCount: 1 },
   { name: 'cinVerso', maxCount: 1 }
-]), [
+]), handleMulterError, [
   body('email')
     .optional()
     .isEmail()
