@@ -6,6 +6,7 @@ import Dashboard from '../models/Dashboard';
 import TimeTracking from '../models/TimeTracking';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { IAuthRequest, ILoginRequest, IUpdateProfileRequest, IChangePasswordRequest, IApiResponse } from '../types';
+import { sendUserRegistrationEmail } from '../services/emailService';
 
 // Générer un token JWT
 const generateToken = (id: string, role: string): string => {
@@ -98,6 +99,10 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
     }
 
     // Créer l'utilisateur avec le rôle spécifié
+    // Les admins sont validés par défaut, les users doivent attendre la validation
+    const userRole = role || 'user';
+    const isValidated = userRole === 'admin'; // Les admins sont validés automatiquement
+    
     const user: IUserDocument = await User.create({
       username,
       email,
@@ -108,11 +113,32 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
       contractType,
       cinRecto: cinRectoBase64,
       cinVerso: cinVersoBase64,
-      role: role || 'user' // Par défaut user si pas spécifié
+      role: userRole,
+      isValidated: isValidated
     });
 
-    // Créer les widgets par défaut pour le tableau de bord
-    await Dashboard.createDefaultWidgets(user._id);
+    // Envoyer un email à l'admin pour notification (seulement pour les users, pas les admins)
+    if (!isValidated) {
+      try {
+        await sendUserRegistrationEmail({
+          firstName,
+          lastName,
+          email,
+          cin,
+          contractType,
+          role: userRole
+        });
+        console.log('✅ Email de notification envoyé à l\'admin');
+      } catch (emailError) {
+        console.error('⚠️ Erreur lors de l\'envoi de l\'email (non bloquant):', emailError);
+        // Ne pas faire échouer l'inscription si l'email échoue
+      }
+    }
+
+    // Créer les widgets par défaut pour le tableau de bord seulement si validé
+    if (isValidated) {
+      await Dashboard.createDefaultWidgets(user._id);
+    }
 
     // Générer le token
     const token = generateToken(user._id.toString(), user.role);
@@ -132,7 +158,8 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
           cinVerso: user.cinVerso || null,
           contractType: user.contractType,
           role: user.role,
-          avatar: user.avatar
+          avatar: user.avatar,
+          isValidated: user.isValidated
         },
         token
       }
@@ -200,6 +227,24 @@ export const login = async (req: Request<{}, IApiResponse, ILoginRequest>, res: 
       return;
     }
 
+    // Vérifier si le compte est validé (sauf pour les admins qui sont toujours validés)
+    if (!user.isValidated && user.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Compte en attente de validation',
+        data: {
+          isValidated: false,
+          user: {
+            id: user._id.toString(),
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName
+          }
+        }
+      });
+      return;
+    }
+
     // Vérifier le mot de passe
     const isPasswordValid = await user.comparePassword(password);
 
@@ -235,7 +280,8 @@ export const login = async (req: Request<{}, IApiResponse, ILoginRequest>, res: 
           contractType: user.contractType,
           role: user.role,
           avatar: user.avatar,
-          lastLogin: user.lastLogin
+          lastLogin: user.lastLogin,
+          isValidated: user.isValidated
         },
         token
       }

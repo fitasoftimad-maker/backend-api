@@ -9,7 +9,10 @@ import {
   duplicateWidget,
   getDashboardStats,
   getAllUsers,
-  deleteUser
+  deleteUser,
+  getPendingUsers,
+  validateUser,
+  rejectUser
 } from '../controllers/dashboardController';
 
 import {
@@ -54,6 +57,9 @@ router.post('/widgets/:id/duplicate', duplicateWidget);
 // Routes admin uniquement
 router.get('/stats', authorizeRole(['admin']), getDashboardStats);
 router.get('/all-users', authorizeRole(['admin']), getAllUsers);
+router.get('/pending-users', authorizeRole(['admin']), getPendingUsers);
+router.put('/validate-user/:id', authorizeRole(['admin']), validateUser);
+router.delete('/reject-user/:id', authorizeRole(['admin']), rejectUser);
 router.delete('/users/:id', authorizeRole(['admin']), deleteUser);
 
 export default router;

@@ -15,6 +15,7 @@ export interface IUserDocument extends Document {
   avatar?: string;
   role: 'user' | 'admin';
   isActive?: boolean;
+  isValidated?: boolean;
   lastLogin?: Date;
   loginAttempts?: number;
   lockUntil?: Date;
@@ -99,6 +100,10 @@ const userSchema = new Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  isValidated: {
+    type: Boolean,
+    default: false // Par défaut, les utilisateurs ne sont pas validés
   },
   lastLogin: {
     type: Date,
@@ -188,7 +193,8 @@ userSchema.statics.createDefaultAdmin = async function() {
         role: 'admin',
         firstName: 'Admin',
         lastName: 'Softimad',
-        isActive: true
+        isActive: true,
+        isValidated: true // Les admins sont validés par défaut
       });
       await defaultAdmin.save();
       console.log('✅ Admin par défaut créé: admin@softimad.com / Admin123!');

@@ -3,6 +3,7 @@ import Dashboard from '../models/Dashboard';
 import User from '../models/User';
 import TimeTracking from '../models/TimeTracking';
 import { IApiResponse } from '../types';
+import DashboardModel from '../models/Dashboard';
 
 // @desc    Obtenir le tableau de bord de l'utilisateur connecté
 // @route   GET /api/dashboard
@@ -384,6 +385,149 @@ export const deleteUser = async (req: Request, res: Response<IApiResponse>): Pro
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la suppression de l\'utilisateur'
+    });
+  }
+};
+
+// @desc    Obtenir les utilisateurs en attente de validation (Admin only)
+// @route   GET /api/dashboard/pending-users
+// @access  Private (Admin only)
+export const getPendingUsers = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    if (req.user!.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Accès non autorisé'
+      });
+      return;
+    }
+
+    const pendingUsers = await User.find({ isValidated: false })
+      .select('firstName lastName email username role cin contractType cinRecto cinVerso createdAt')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      message: 'Utilisateurs en attente récupérés',
+      data: { users: pendingUsers }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des utilisateurs en attente:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des utilisateurs en attente'
+    });
+  }
+};
+
+// @desc    Valider un utilisateur (Admin only)
+// @route   PUT /api/dashboard/validate-user/:id
+// @access  Private (Admin only)
+export const validateUser = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    if (req.user!.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Accès non autorisé'
+      });
+      return;
+    }
+
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+      return;
+    }
+
+    if (user.isValidated) {
+      res.status(400).json({
+        success: false,
+        message: 'Cet utilisateur est déjà validé'
+      });
+      return;
+    }
+
+    // Valider l'utilisateur
+    user.isValidated = true;
+    await user.save();
+
+    // Créer les widgets par défaut pour le tableau de bord
+    await DashboardModel.createDefaultWidgets(user._id);
+
+    res.json({
+      success: true,
+      message: 'Utilisateur validé avec succès',
+      data: {
+        user: {
+          id: user._id.toString(),
+          username: user.username,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          isValidated: user.isValidated
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la validation de l\'utilisateur:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la validation de l\'utilisateur'
+    });
+  }
+};
+
+// @desc    Refuser un utilisateur (Admin only) - Supprime l'utilisateur
+// @route   DELETE /api/dashboard/reject-user/:id
+// @access  Private (Admin only)
+export const rejectUser = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    if (req.user!.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Accès non autorisé'
+      });
+      return;
+    }
+
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+      return;
+    }
+
+    if (user.isValidated) {
+      res.status(400).json({
+        success: false,
+        message: 'Cet utilisateur est déjà validé et ne peut pas être refusé'
+      });
+      return;
+    }
+
+    // Supprimer l'utilisateur et ses données associées
+    await User.findByIdAndDelete(id);
+    await Dashboard.deleteMany({ user: id });
+    await TimeTracking.deleteMany({ user: id });
+
+    res.json({
+      success: true,
+      message: 'Utilisateur refusé et supprimé avec succès'
+    });
+  } catch (error) {
+    console.error('Erreur lors du refus de l\'utilisateur:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du refus de l\'utilisateur'
     });
   }
 };

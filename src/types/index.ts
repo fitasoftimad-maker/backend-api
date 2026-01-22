@@ -53,6 +53,7 @@ export interface IUser {
   avatar?: string;
   role: 'user' | 'admin';
   isActive?: boolean;
+  isValidated?: boolean;
   lastLogin?: Date;
   loginAttempts?: number;
   lockUntil?: Date;
