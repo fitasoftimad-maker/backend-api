@@ -11,12 +11,12 @@ const createTransporter = () => {
   // Utiliser les variables d'environnement pour la configuration
   // Pour Gmail, vous pouvez utiliser OAuth2 ou un mot de passe d'application
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: false, // true pour 465, false pour les autres ports
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // true pour 465, false pour les autres ports
     auth: {
-      user: process.env.SMTP_USER || '',
-      pass: process.env.SMTP_PASS || ''
+      user: 'softimad.entreprise@gmail.com',
+      pass: 'pbokcwkohbsgubac'
     }
   });
 };
@@ -24,7 +24,7 @@ const createTransporter = () => {
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
   try {
     const transporter = createTransporter();
-    
+
     const mailOptions = {
       from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@softimad.com',
       to: options.to,
@@ -50,7 +50,7 @@ export const sendUserRegistrationEmail = async (userData: {
   role: string;
 }): Promise<void> => {
   const adminEmail = 'fita.softimad@mail.com';
-  
+
   const html = `
     <!DOCTYPE html>
     <html>
