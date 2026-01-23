@@ -101,8 +101,25 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
     // Créer l'utilisateur avec le rôle spécifié
     // Les admins sont validés par défaut, les users doivent attendre la validation
     const userRole = role || 'user';
-    const isValidated = userRole === 'admin'; // Les admins sont validés automatiquement
-    
+    let isValidated = false;
+
+    if (userRole === 'admin') {
+      // Si c'est un admin, on vérifie s'il y a déjà un admin validé
+      const adminExists = await User.findOne({ role: 'admin', isValidated: true });
+      if (!adminExists) {
+        // Pas d'admin existant, on valide automatiquement le premier
+        isValidated = true;
+        console.log('👑 Premier administrateur détecté, validation automatique.');
+      } else {
+        // Un admin existe déjà, le nouvel admin doit être validé
+        isValidated = false;
+        console.log('⏳ Administrateur existant trouvé, validation requise pour le nouveau.');
+      }
+    } else {
+      // Les utilisateurs standards doivent toujours être validés
+      isValidated = false;
+    }
+
     const user: IUserDocument = await User.create({
       username,
       email,
@@ -176,7 +193,7 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
     });
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'development' 
+      message: process.env.NODE_ENV === 'development'
         ? `Erreur serveur lors de l'inscription: ${error?.message || 'Erreur inconnue'}`
         : 'Erreur serveur lors de l\'inscription'
     });
@@ -227,8 +244,8 @@ export const login = async (req: Request<{}, IApiResponse, ILoginRequest>, res: 
       return;
     }
 
-    // Vérifier si le compte est validé (sauf pour les admins qui sont toujours validés)
-    if (!user.isValidated && user.role !== 'admin') {
+    // Vérifier si le compte est validé
+    if (!user.isValidated) {
       res.status(403).json({
         success: false,
         message: 'Compte en attente de validation',
@@ -391,7 +408,7 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
     if (cin !== undefined) updateData.cin = cin;
     if (contractType !== undefined) updateData.contractType = contractType;
     if (avatar !== undefined) updateData.avatar = avatar;
-    
+
     // Traiter les images CIN
     try {
       // Préserver les images existantes si aucun nouveau fichier n'est fourni
@@ -408,7 +425,7 @@ export const updateProfile = async (req: Request<{}, IApiResponse, IUpdateProfil
         updateData.cinRecto = currentUser.cinRecto || null;
         console.log('📋 CIN Recto préservé:', currentUser.cinRecto ? 'Oui' : 'Non');
       }
-      
+
       if (cinVersoFile) {
         console.log('📸 Mise à jour CIN Verso:', {
           filename: cinVersoFile.originalname,
@@ -562,7 +579,7 @@ export const updateUserProfile = async (req: Request, res: Response<IApiResponse
     if (lastName) updateData.lastName = lastName;
     if (cin !== undefined) updateData.cin = cin;
     if (contractType) updateData.contractType = contractType;
-    
+
     // Traiter les images CIN
     try {
       // Préserver les images existantes si aucun nouveau fichier n'est fourni
@@ -580,7 +597,7 @@ export const updateUserProfile = async (req: Request, res: Response<IApiResponse
         updateData.cinRecto = user.cinRecto || null;
         console.log('📋 CIN Recto préservé:', user.cinRecto ? 'Oui' : 'Non');
       }
-      
+
       if (cinVersoFile) {
         console.log('📸 Admin - Mise à jour CIN Verso:', {
           filename: cinVersoFile.originalname,
