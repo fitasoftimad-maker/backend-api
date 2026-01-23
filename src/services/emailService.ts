@@ -50,7 +50,12 @@ export const sendUserRegistrationEmail = async (userData: {
   contractType?: string;
   role: string;
 }): Promise<void> => {
-  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || 'fita.softimad@gmail.com';
+  // Récupérer les emails depuis la variable d'environnement ou utiliser les valeurs par défaut
+  const adminEmails = process.env.ADMIN_NOTIFICATION_EMAIL || 'fita.softimad@gmail.com,johny.softimad@outlook.com';
+
+  // Convertir en tableau si nécessaire ou laisser comme string (nodemailer gère "email1, email2")
+  const recipients = adminEmails.split(',').map(email => email.trim());
+  console.log('📧 Envoi de notification aux administrateurs:', recipients);
 
   const html = `
     <!DOCTYPE html>
@@ -115,7 +120,7 @@ export const sendUserRegistrationEmail = async (userData: {
   `;
 
   await sendEmail({
-    to: adminEmail,
+    to: recipients.join(', '), // Nodemailer accepte une liste séparée par des virgules
     subject: `🔔 Nouvelle inscription - ${userData.firstName || ''} ${userData.lastName || ''}`,
     html
   });
