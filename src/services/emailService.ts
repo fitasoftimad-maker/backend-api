@@ -9,6 +9,15 @@ interface EmailOptions {
 // Configuration du transporteur email
 // Configuration du transporteur email
 const createTransporter = () => {
+  // Vérification critique des variables d'environnement
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.error('❌ ERREUR CRITIQUE: Configuration email manquante (SMTP_USER ou SMTP_PASS)');
+    if (process.env.NODE_ENV === 'production') {
+      console.error('👉 Veuillez vérifier les variables d\'environnement sur votre plateforme d\'hébergement (Render, etc.)');
+    }
+    // Ne pas crasher complètement pour permettre le diagnostic, mais loguer l'erreur
+  }
+
   // Utiliser les variables d'environnement pour la configuration
   // Pour Gmail, vous pouvez utiliser OAuth2 ou un mot de passe d'application
   return nodemailer.createTransport({
@@ -120,7 +129,7 @@ export const sendUserRegistrationEmail = async (userData: {
   `;
 
   await sendEmail({
-    to: recipients.join(', '), // Nodemailer accepte une liste séparée par des virgules
+    to: recipients.join(','), // Convertir le tableau en chaîne séparée par des virgules
     subject: `🔔 Nouvelle inscription - ${userData.firstName || ''} ${userData.lastName || ''}`,
     html
   });
