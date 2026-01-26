@@ -9,6 +9,7 @@ import path from 'path';
 import authRoutes from './routes/auth';
 import dashboardRoutes from './routes/dashboard';
 import timeTrackingRoutes from './routes/timeTracking';
+import taskRoutes from './routes/task';
 import { connectDB } from './config/database';
 
 dotenv.config();
@@ -37,12 +38,12 @@ const corsOptions = {
 
     const allowedOrigins = process.env.NODE_ENV === 'production'
       ? [
-          process.env.FRONTEND_URL || 'https://test.softimad.com',
-          'https://test.softimad.com',
-          /\.lws\.fr$/, // Permettre tous les sous-domaines LWS
-          /^https:\/\/.*\.lws\.fr$/, // Regex pour les domaines LWS
-          'https://backend-api-9c1n.onrender.com' // Pour les tests directs
-        ]
+        process.env.FRONTEND_URL || 'https://test.softimad.com',
+        'https://test.softimad.com',
+        /\.lws\.fr$/, // Permettre tous les sous-domaines LWS
+        /^https:\/\/.*\.lws\.fr$/, // Regex pour les domaines LWS
+        'https://backend-api-9c1n.onrender.com' // Pour les tests directs
+      ]
       : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'];
 
     // Check if the origin matches any allowed pattern
@@ -84,6 +85,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/timetracking', timeTrackingRoutes);
+app.use('/api/tasks', taskRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {
