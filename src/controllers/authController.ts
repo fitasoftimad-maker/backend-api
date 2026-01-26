@@ -116,8 +116,9 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
         console.log('⏳ Administrateur existant trouvé, validation requise pour le nouveau.');
       }
     } else {
-      // Les utilisateurs standards doivent toujours être validés
-      isValidated = false;
+      // Les utilisateurs standards sont maintenant validés par défaut
+      isValidated = true;
+      console.log('👤 Nouvel utilisateur détecté, validation automatique.');
     }
 
     const user: IUserDocument = await User.create({
