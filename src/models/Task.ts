@@ -6,6 +6,7 @@ export interface ITaskDocument extends Document {
     description?: string;
     status: 'en cours' | 'terminé';
     date: Date; // Le jour où la tâche est affichée dans le calendrier
+    deadlineStart: Date;
     deadline: Date;
     createdBy: Types.ObjectId;
     createdAt: Date;
@@ -38,6 +39,10 @@ const taskSchema = new Schema<ITaskDocument>({
         type: Date,
         required: true,
         index: true
+    },
+    deadlineStart: {
+        type: Date,
+        required: true
     },
     deadline: {
         type: Date,

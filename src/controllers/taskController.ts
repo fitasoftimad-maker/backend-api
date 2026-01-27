@@ -8,7 +8,7 @@ import { IApiResponse } from '../types';
 // @access  Private (Admin only)
 export const createTask = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
     try {
-        const { userId, title, description, date, deadline } = req.body;
+        const { userId, title, description, date, deadlineStart, deadline } = req.body;
 
         if (req.user!.role !== 'admin') {
             res.status(403).json({
@@ -23,6 +23,7 @@ export const createTask = async (req: Request, res: Response<IApiResponse>): Pro
             title,
             description,
             date,
+            deadlineStart,
             deadline,
             createdBy: req.user!._id,
             status: 'en cours'
@@ -64,7 +65,19 @@ export const getUserTasks = async (req: Request, res: Response<IApiResponse>): P
         if (month && year) {
             const startOfMonth = new Date(parseInt(year as string), parseInt(month as string) - 1, 1);
             const endOfMonth = new Date(parseInt(year as string), parseInt(month as string), 0, 23, 59, 59);
-            query.date = { $gte: startOfMonth, $lte: endOfMonth };
+
+            // On récupère les tâches qui :
+            // 1. Ont été créées avant ou pendant ce mois
+            // 2. ET ne sont pas terminées OU ont été terminées pendant ou après ce mois
+            query.$and = [
+                { date: { $lte: endOfMonth } },
+                {
+                    $or: [
+                        { status: 'en cours' },
+                        { updatedAt: { $gte: startOfMonth } }
+                    ]
+                }
+            ];
         }
 
         const tasks = await Task.find(query).sort({ date: 1 });
