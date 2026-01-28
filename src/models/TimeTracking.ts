@@ -132,7 +132,7 @@ const timeTrackingSchema: Schema<ITimeTrackingDocument> = new Schema({
 timeTrackingSchema.index({ user: 1, month: 1, year: 1 }, { unique: true });
 
 // Méthode pour obtenir le suivi du mois en cours
-timeTrackingSchema.statics.getCurrentMonthTracking = async function(
+timeTrackingSchema.statics.getCurrentMonthTracking = async function (
   userId: Types.ObjectId
 ): Promise<ITimeTrackingDocument | null> {
   const now = new Date();
@@ -179,28 +179,22 @@ function calculateEntryHours(entry: ITimeEntry, forceCheckout: boolean = false):
     const checkInDay = checkInDate.getDate();
     const checkInMonth = checkInDate.getMonth();
     const checkInYear = checkInDate.getFullYear();
-    
+
     const currentDay = now.getDate();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    
-    const isNewDay = currentYear > checkInYear || 
-                     (currentYear === checkInYear && currentMonth > checkInMonth) ||
-                     (currentYear === checkInYear && currentMonth === checkInMonth && currentDay > checkInDay);
-    
-    // Vérifier si on atteint 8h nettes (calcul préliminaire)
-    const preliminaryNetHours = Math.max(0, entry.totalHours - entry.breakHours);
-    if (preliminaryNetHours >= 8) {
-      shouldAutoCheckout = true;
-      autoCheckoutReason = '8h atteintes';
-    }
+
+    const isNewDay = currentYear > checkInYear ||
+      (currentYear === checkInYear && currentMonth > checkInMonth) ||
+      (currentYear === checkInYear && currentMonth === checkInMonth && currentDay > checkInDay);
+
     // Vérifier si on arrive à minuit (0h00) ou si on a changé de jour
-    else if (now.getHours() === 0 || isNewDay) {
+    if (now.getHours() === 0 || isNewDay) {
       shouldAutoCheckout = true;
       autoCheckoutReason = isNewDay ? 'nouveau jour' : 'minuit atteint';
     }
 
-    // Déclencher le checkout automatique si nécessaire
+    // Déclencher le checkout automatique si nécessaire (uniquement pour jour/minuit)
     if (shouldAutoCheckout || forceCheckout) {
       // Utiliser la date du jour précédent à 23:59:59 si on est passé à un nouveau jour
       let finalCheckoutTime: Date;
@@ -212,7 +206,7 @@ function calculateEntryHours(entry: ITimeEntry, forceCheckout: boolean = false):
       } else {
         finalCheckoutTime = now;
       }
-      
+
       // Fermer toutes les pauses en cours avant de définir le checkout
       entry.breaks.forEach((break_: IBreak) => {
         if (!break_.end) {
@@ -221,32 +215,28 @@ function calculateEntryHours(entry: ITimeEntry, forceCheckout: boolean = false):
           break_.duration = (finalCheckoutTime.getTime() - break_.start.getTime()) / (1000 * 60); // en minutes
         }
       });
-      
+
       // Définir le checkout
       entry.checkOut = finalCheckoutTime;
-      entry.isPaused = false; // Plus en pause si checkout automatique
-      
+      entry.isPaused = false;
+
       // Recalculer les heures avec le nouveau checkout
       entry.totalHours = (finalCheckoutTime.getTime() - entry.checkIn.getTime()) / (1000 * 60 * 60);
-      
-      // Recalculer les pauses (toutes sont maintenant terminées)
+
+      // Recalculer les pauses
       entry.breakHours = entry.breaks.reduce((total: number, break_: IBreak) => {
-        if (break_.end) {
-          return total + (break_.end.getTime() - break_.start.getTime()) / (1000 * 60 * 60);
-        } else {
-          // Ne devrait plus arriver, mais au cas où
-          return total + (finalCheckoutTime.getTime() - break_.start.getTime()) / (1000 * 60 * 60);
-        }
+        return total + (break_.end ? (break_.end.getTime() - break_.start.getTime()) / (1000 * 60 * 60) : 0);
       }, 0);
     }
   }
 
-  // Heures nettes = total - pauses (calcul final)
-  entry.netHours = Math.max(0, entry.totalHours - entry.breakHours);
+  // Heures nettes = total - pauses (calcul final) - PLAFONNÉ À 8h
+  const rawNetHours = Math.max(0, entry.totalHours - entry.breakHours);
+  entry.netHours = Math.min(8.0, rawNetHours);
 
   // Déterminer le statut
   if (!entry.checkOut) {
-    entry.status = entry.isPaused ? 'in_progress' : 'in_progress';
+    entry.status = 'in_progress';
   } else {
     entry.status = entry.netHours >= 8 ? 'completed' : entry.netHours >= 4 ? 'partial' : 'present';
   }
@@ -255,7 +245,7 @@ function calculateEntryHours(entry: ITimeEntry, forceCheckout: boolean = false):
 }
 
 // Méthode pour créer ou mettre à jour une entrée avec gestion des pauses
-timeTrackingSchema.statics.createOrUpdateEntry = async function(
+timeTrackingSchema.statics.createOrUpdateEntry = async function (
   userId: Types.ObjectId,
   entryData: Partial<ITimeEntry>
 ): Promise<ITimeTrackingDocument> {
@@ -305,12 +295,12 @@ timeTrackingSchema.statics.createOrUpdateEntry = async function(
 };
 
 // Méthode pour calculer les heures d'une entrée
-timeTrackingSchema.statics.calculateEntryHours = function(entry: ITimeEntry): { shouldAutoCheckout: boolean; autoCheckoutReason?: string } {
+timeTrackingSchema.statics.calculateEntryHours = function (entry: ITimeEntry): { shouldAutoCheckout: boolean; autoCheckoutReason?: string } {
   return calculateEntryHours(entry);
 };
 
 // Méthode pour obtenir le status temps réel d'une journée
-timeTrackingSchema.statics.getTodayRealTimeStatus = async function(
+timeTrackingSchema.statics.getTodayRealTimeStatus = async function (
   userId: Types.ObjectId
 ): Promise<{
   entry: ITimeEntry | null;
@@ -364,10 +354,10 @@ timeTrackingSchema.statics.getTodayRealTimeStatus = async function(
       },
       0
     );
-    
+
     // Sauvegarder les modifications (checkout automatique et heures nettes)
     await tracking.save();
-    
+
     console.log(`✅ Checkout automatique déclenché pour l'utilisateur ${userId}: ${autoCheckoutReason}`);
   }
 
