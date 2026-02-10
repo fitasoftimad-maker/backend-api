@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import TimeTracking from '../models/TimeTracking';
 import { IApiResponse } from '../types';
+import { getMadaDateString, getMadaDateComponents } from '../utils/dateUtils';
 
 // @desc    Pointer l'arrivée
 // @route   POST /api/timetracking/checkin
@@ -53,10 +54,10 @@ export const checkOut = async (req: Request, res: Response<IApiResponse>): Promi
       return;
     }
 
-    // Trouver l'entrée d'aujourd'hui
-    const today = new Date().toDateString();
+    // Trouver l'entrée d'aujourd'hui (Mada Time)
+    const todayMada = getMadaDateString(new Date());
     const todayEntry = tracking.entries.find(
-      entry => entry.date.toDateString() === today
+      entry => getMadaDateString(entry.date) === todayMada
     );
 
     if (!todayEntry || !todayEntry.checkIn) {
@@ -74,9 +75,9 @@ export const checkOut = async (req: Request, res: Response<IApiResponse>): Promi
     });
 
     // Récupérer l'entrée mise à jour pour obtenir les heures nettes calculées
-    const updatedToday = new Date().toDateString();
+    const updatedTodayMada = getMadaDateString(new Date());
     const updatedEntry = updatedTracking.entries.find(
-      entry => entry.date.toDateString() === updatedToday
+      entry => getMadaDateString(entry.date) === updatedTodayMada
     );
 
     const netHours = updatedEntry?.netHours || 0;
@@ -84,8 +85,8 @@ export const checkOut = async (req: Request, res: Response<IApiResponse>): Promi
 
     res.json({
       success: true,
-      message: hasReachedEightHours 
-        ? 'Pointage départ enregistré. Vous avez atteint 8 heures de travail !' 
+      message: hasReachedEightHours
+        ? 'Pointage départ enregistré. Vous avez atteint 8 heures de travail !'
         : 'Pointage départ enregistré',
       data: {
         checkOut: now,
@@ -120,9 +121,9 @@ export const startPause = async (req: Request, res: Response<IApiResponse>): Pro
       return;
     }
 
-    const today = new Date().toDateString();
+    const todayMada = getMadaDateString(new Date());
     const todayEntry = tracking.entries.find(
-      entry => entry.date.toDateString() === today
+      entry => getMadaDateString(entry.date) === todayMada
     );
 
     if (!todayEntry || !todayEntry.checkIn || todayEntry.checkOut) {
@@ -174,9 +175,9 @@ export const resumeWork = async (req: Request, res: Response<IApiResponse>): Pro
       return;
     }
 
-    const today = new Date().toDateString();
+    const todayMada = getMadaDateString(new Date());
     const todayEntry = tracking.entries.find(
-      entry => entry.date.toDateString() === today
+      entry => getMadaDateString(entry.date) === todayMada
     );
 
     if (!todayEntry || !todayEntry.checkIn) {
@@ -241,9 +242,9 @@ export const continueWork = async (req: Request, res: Response<IApiResponse>): P
       return;
     }
 
-    const today = new Date().toDateString();
+    const todayMada = getMadaDateString(new Date());
     const todayEntry = tracking.entries.find(
-      entry => entry.date.toDateString() === today
+      entry => getMadaDateString(entry.date) === todayMada
     );
 
     if (!todayEntry || !todayEntry.checkIn) {
@@ -333,8 +334,17 @@ export const getHistory = async (req: Request, res: Response<IApiResponse>): Pro
     const userId = req.user!._id;
     const { month, year } = req.query;
 
-    const targetMonth = month ? parseInt(month as string) : new Date().getMonth() + 1;
-    const targetYear = year ? parseInt(year as string) : new Date().getFullYear();
+    let targetMonth: number;
+    let targetYear: number;
+
+    if (month && year) {
+      targetMonth = parseInt(month as string);
+      targetYear = parseInt(year as string);
+    } else {
+      const madaComponents = getMadaDateComponents();
+      targetMonth = madaComponents.month;
+      targetYear = madaComponents.year;
+    }
 
     const tracking = await TimeTracking.findOne({
       user: userId,
@@ -407,8 +417,8 @@ export const getCurrentMonthTracking = async (req: Request, res: Response<IApiRe
         tracking: tracking || {
           entries: [],
           totalHoursMonth: 0,
-          month: new Date().getMonth() + 1,
-          year: new Date().getFullYear()
+          month: getMadaDateComponents().month,
+          year: getMadaDateComponents().year
         }
       }
     });
@@ -437,8 +447,17 @@ export const getUserHistory = async (req: Request, res: Response<IApiResponse>):
     const { userId } = req.params;
     const { month, year } = req.query;
 
-    const targetMonth = parseInt(month as string) || new Date().getMonth() + 1;
-    const targetYear = parseInt(year as string) || new Date().getFullYear();
+    let targetMonth: number;
+    let targetYear: number;
+
+    if (month && year) {
+      targetMonth = parseInt(month as string);
+      targetYear = parseInt(year as string);
+    } else {
+      const madaComponents = getMadaDateComponents();
+      targetMonth = madaComponents.month;
+      targetYear = madaComponents.year;
+    }
 
     const tracking = await TimeTracking.findOne({
       user: userId,
@@ -474,9 +493,7 @@ export const getUserHistory = async (req: Request, res: Response<IApiResponse>):
 // @access  Private (Admin only)
 export const getAllUsersTracking = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
   try {
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const { month: currentMonth, year: currentYear } = getMadaDateComponents();
 
     const allTracking = await TimeTracking.find({
       month: currentMonth,

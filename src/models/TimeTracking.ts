@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema, Model, Types } from 'mongoose';
+import { getMadaDateComponents, getMadaDateString, getMadaTime } from '../utils/dateUtils';
 
 export interface IBreak {
   start: Date;
@@ -135,11 +136,11 @@ timeTrackingSchema.index({ user: 1, month: 1, year: 1 }, { unique: true });
 timeTrackingSchema.statics.getCurrentMonthTracking = async function (
   userId: Types.ObjectId
 ): Promise<ITimeTrackingDocument | null> {
-  const now = new Date();
+  const { month, year } = getMadaDateComponents();
   return this.findOne({
     user: userId,
-    month: now.getMonth() + 1,
-    year: now.getFullYear()
+    month,
+    year
   });
 };
 
@@ -174,24 +175,26 @@ function calculateEntryHours(entry: ITimeEntry, forceCheckout: boolean = false):
   let autoCheckoutReason: string | undefined;
 
   if (!entry.checkOut) {
-    // Vérifier si on a changé de jour (date différente de celle du checkIn)
-    const checkInDate = new Date(entry.checkIn);
-    const checkInDay = checkInDate.getDate();
-    const checkInMonth = checkInDate.getMonth();
-    const checkInYear = checkInDate.getFullYear();
-
-    const currentDay = now.getDate();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    const isNewDay = currentYear > checkInYear ||
-      (currentYear === checkInYear && currentMonth > checkInMonth) ||
-      (currentYear === checkInYear && currentMonth === checkInMonth && currentDay > checkInDay);
+    // Vérifier si on a changé de jour pour Madagascar
+    const checkInMadaDateStr = getMadaDateString(entry.checkIn);
+    const currentMadaDateStr = getMadaDateString(now);
+    const isNewDay = checkInMadaDateStr !== currentMadaDateStr;
 
     // Vérifier si on arrive à minuit (0h00) ou si on a changé de jour
-    if (now.getHours() === 0 || isNewDay) {
-      shouldAutoCheckout = true;
-      autoCheckoutReason = isNewDay ? 'nouveau jour' : 'minuit atteint';
+    const madaTime = getMadaTime(now);
+
+    // Si il est minuit à Mada (ou 3h du mat UTC), ou si on a changé de jour Mada
+    if (madaTime.getUTCHours() === 0 || isNewDay) {
+      shouldAutoCheckout = true; // Reste à true pour la sécurité
+      // autoCheckoutReason = isNewDay ? 'nouveau jour' : 'minuit atteint';
+      // Désactivation temporaire de l'auto-checkout "juste pour minuit" si on est toujours dans la même "session de travail logique"
+      // Mais ici, la demande est de fixer le fuseau.
+      // Si l'utilisateur travaille à 23h59 Mada, à 00:00 Mada ça coupe ?
+      // L'original coupait à 00:00 UTC (03:00 Mada).
+      // Si on garde la logique "coupure à minuit", alors à 00:00 Mada ça coupe.
+      // C'est peut-être voulu pour séparer les journées.
+      // Pour l'instant, appliquons la correction de fuseau.
+      autoCheckoutReason = isNewDay ? 'nouveau jour (Mada)' : 'minuit atteint (Mada)';
     }
 
     // Déclencher le checkout automatique si nécessaire (uniquement pour jour/minuit)
@@ -250,8 +253,7 @@ timeTrackingSchema.statics.createOrUpdateEntry = async function (
   entryData: Partial<ITimeEntry>
 ): Promise<ITimeTrackingDocument> {
   const entryDate = new Date(entryData.date!);
-  const month = entryDate.getMonth() + 1;
-  const year = entryDate.getFullYear();
+  const { month, year } = getMadaDateComponents(entryDate);
 
   // Trouver ou créer le document du mois
   let tracking = await this.findOne({ user: userId, month, year });
@@ -267,7 +269,7 @@ timeTrackingSchema.statics.createOrUpdateEntry = async function (
 
   // Trouver l'entrée existante pour cette date
   const existingEntryIndex = tracking.entries.findIndex(
-    (entry: ITimeEntry) => entry.date.toDateString() === entryDate.toDateString()
+    (entry: ITimeEntry) => getMadaDateString(entry.date) === getMadaDateString(entryDate)
   );
 
   if (existingEntryIndex >= 0) {
@@ -313,16 +315,17 @@ timeTrackingSchema.statics.getTodayRealTimeStatus = async function (
   timeToEightHours: number; // minutes restantes jusqu'à 8h
 } | null> {
   const now = new Date();
+  const { month, year } = getMadaDateComponents(now);
   const tracking = await this.findOne({
     user: userId,
-    month: now.getMonth() + 1,
-    year: now.getFullYear()
+    month,
+    year
   });
   if (!tracking) return null;
 
-  const today = new Date().toDateString();
+  const todayMada = getMadaDateString(new Date());
   const entry = tracking.entries.find(
-    (entry: ITimeEntry) => entry.date.toDateString() === today
+    (entry: ITimeEntry) => getMadaDateString(entry.date) === todayMada
   );
 
   if (!entry || !entry.checkIn) {
