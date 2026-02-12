@@ -517,3 +517,87 @@ export const getAllUsersTracking = async (req: Request, res: Response<IApiRespon
     });
   }
 };
+
+// @desc    Demander des heures supplémentaires
+// @route   POST /api/timetracking/request-overtime
+// @access  Private (User only)
+export const requestOvertime = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    const userId = req.user!._id;
+    const now = new Date();
+    const todayMada = getMadaDateString(now);
+
+    const tracking = await TimeTracking.getCurrentMonthTracking(new Types.ObjectId(userId));
+
+    if (!tracking) {
+      res.status(400).json({ success: false, message: 'Aucun pointage trouvé' });
+      return;
+    }
+
+    const todayEntry = tracking.entries.find(e => getMadaDateString(e.date) === todayMada);
+
+    if (!todayEntry || (todayEntry.netHours || 0) < 8) {
+      res.status(400).json({ success: false, message: "L'objectif de 8h doit être atteint avant de demander des heures supplémentaires" });
+      return;
+    }
+
+    todayEntry.overtimeRequested = true;
+    await tracking.save();
+
+    res.json({ success: true, message: 'Demande d\'heures supplémentaires envoyée' });
+  } catch (error) {
+    console.error('Erreur requestOvertime:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+};
+
+// @desc    Lancer les heures supplémentaires
+// @route   POST /api/timetracking/start-overtime
+// @access  Private (User only)
+export const startOvertime = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    const userId = req.user!._id;
+    const now = new Date();
+    const todayMada = getMadaDateString(now);
+
+    const tracking = await TimeTracking.getCurrentMonthTracking(new Types.ObjectId(userId));
+
+    if (!tracking) {
+      res.status(400).json({ success: false, message: 'Aucun pointage trouvé' });
+      return;
+    }
+
+    const todayEntry = tracking.entries.find(e => getMadaDateString(e.date) === todayMada);
+
+    if (!todayEntry || !todayEntry.overtimeApproved) {
+      res.status(400).json({ success: false, message: "L'heure supplémentaire n'a pas encore été validée par l'admin" });
+      return;
+    }
+
+    todayEntry.overtimeStarted = true;
+
+    // Si l'utilisateur avait cliqué sur "Départ", on doit le remettre en "in_progress"
+    if (todayEntry.checkOut) {
+      // Comme dans continueWork, on ajoute une pause pour l'intervalle
+      const previousCheckOut = todayEntry.checkOut;
+      const breakDurationMinutes = (now.getTime() - previousCheckOut.getTime()) / (1000 * 60);
+
+      todayEntry.breaks.push({
+        start: previousCheckOut,
+        end: now,
+        duration: breakDurationMinutes
+      });
+
+      todayEntry.checkOut = undefined;
+      todayEntry.isPaused = false;
+      todayEntry.lastResumeTime = now;
+    }
+
+    await tracking.save();
+
+    res.json({ success: true, message: 'Heures supplémentaires commencées' });
+  } catch (error) {
+    console.error('Erreur startOvertime:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+};

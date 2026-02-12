@@ -12,7 +12,9 @@ import {
   deleteUser,
   getPendingUsers,
   validateUser,
-  rejectUser
+  rejectUser,
+  validateOvertime,
+  rejectOvertime
 } from '../controllers/dashboardController';
 
 import {
@@ -61,5 +63,7 @@ router.get('/pending-users', authorizeRole(['admin']), getPendingUsers);
 router.put('/validate-user/:id', authorizeRole(['admin']), validateUser);
 router.delete('/reject-user/:id', authorizeRole(['admin']), rejectUser);
 router.delete('/users/:id', authorizeRole(['admin']), deleteUser);
+router.put('/validate-overtime/:userId', authorizeRole(['admin']), validateOvertime);
+router.put('/reject-overtime/:userId', authorizeRole(['admin']), rejectOvertime);
 
 export default router;

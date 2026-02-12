@@ -9,7 +9,9 @@ import {
   getHistory,
   getCurrentMonthTracking,
   getAllUsersTracking,
-  getUserHistory
+  getUserHistory,
+  requestOvertime,
+  startOvertime
 } from '../controllers/timeTrackingController';
 
 import {
@@ -30,6 +32,8 @@ router.post('/continue', continueWork);
 router.get('/realtime-status', getRealTimeStatus);
 router.get('/history', getHistory);
 router.get('/current-month', getCurrentMonthTracking);
+router.post('/request-overtime', requestOvertime);
+router.post('/start-overtime', startOvertime);
 
 // Routes admin uniquement
 router.get('/all-users', authorizeRole(['admin']), getAllUsersTracking);

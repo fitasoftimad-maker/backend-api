@@ -2,8 +2,10 @@ import { Request, Response } from 'express';
 import Dashboard from '../models/Dashboard';
 import User from '../models/User';
 import TimeTracking from '../models/TimeTracking';
+import { Types } from 'mongoose';
 import { IApiResponse } from '../types';
 import DashboardModel from '../models/Dashboard';
+import { getMadaDateString } from '../utils/dateUtils';
 
 // @desc    Obtenir le tableau de bord de l'utilisateur connecté
 // @route   GET /api/dashboard
@@ -596,5 +598,85 @@ export const getDashboardStats = async (req: Request, res: Response<IApiResponse
       success: false,
       message: 'Erreur lors de la récupération des statistiques'
     });
+  }
+};
+
+// @desc    Valider une demande d'heures supplémentaires
+// @route   PUT /api/dashboard/validate-overtime/:userId
+// @access  Private (Admin only)
+export const validateOvertime = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    if (req.user!.role !== 'admin') {
+      res.status(403).json({ success: false, message: 'Accès non autorisé' });
+      return;
+    }
+
+    const { userId } = req.params;
+    const now = new Date();
+    const todayMada = getMadaDateString(now);
+
+    const tracking = await TimeTracking.getCurrentMonthTracking(new Types.ObjectId(userId));
+
+    if (!tracking) {
+      res.status(404).json({ success: false, message: 'Aucun pointage trouvé pour cet utilisateur ce mois-ci' });
+      return;
+    }
+
+    const todayEntry = tracking.entries.find(e => getMadaDateString(e.date) === todayMada);
+
+    if (!todayEntry) {
+      res.status(404).json({ success: false, message: "Aucun pointage trouvé pour aujourd'hui" });
+      return;
+    }
+
+    todayEntry.overtimeApproved = true;
+    todayEntry.overtimeRequested = false; // Une fois validé, ce n'est plus "en attente"
+
+    await tracking.save();
+
+    res.json({ success: true, message: 'Heures supplémentaires validées avec succès' });
+  } catch (error) {
+    console.error('Erreur validateOvertime:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+};
+
+// @desc    Refuser une demande d'heures supplémentaires
+// @route   PUT /api/dashboard/reject-overtime/:userId
+// @access  Private (Admin only)
+export const rejectOvertime = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    if (req.user!.role !== 'admin') {
+      res.status(403).json({ success: false, message: 'Accès non autorisé' });
+      return;
+    }
+
+    const { userId } = req.params;
+    const now = new Date();
+    const todayMada = getMadaDateString(now);
+
+    const tracking = await TimeTracking.getCurrentMonthTracking(new Types.ObjectId(userId));
+
+    if (!tracking) {
+      res.status(404).json({ success: false, message: 'Aucun pointage trouvé' });
+      return;
+    }
+
+    const todayEntry = tracking.entries.find(e => getMadaDateString(e.date) === todayMada);
+
+    if (!todayEntry) {
+      res.status(404).json({ success: false, message: "Aucun pointage trouvé" });
+      return;
+    }
+
+    todayEntry.overtimeRequested = false;
+    todayEntry.overtimeApproved = false;
+
+    await tracking.save();
+
+    res.json({ success: true, message: 'Heures supplémentaires refusées' });
+  } catch (error) {
+    console.error('Erreur rejectOvertime:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 };

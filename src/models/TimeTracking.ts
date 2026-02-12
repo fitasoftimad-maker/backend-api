@@ -16,9 +16,27 @@ export interface ITimeEntry {
   breakHours?: number; // total des pauses en heures
   netHours?: number; // heures nettes (total - pauses)
   status: 'present' | 'absent' | 'late' | 'partial' | 'in_progress' | 'completed';
-  notes?: string;
   isPaused?: boolean;
   lastResumeTime?: Date;
+  overtimeRequested?: boolean;
+  overtimeApproved?: boolean;
+  overtimeStarted?: boolean;
+  overtimeHours?: number;
+}
+
+export interface IRealTimeStatus {
+  entry: ITimeEntry | null;
+  currentTime: Date;
+  totalHours: number;
+  breakHours: number;
+  netHours: number;
+  isWorking: boolean;
+  isPaused: boolean;
+  timeToEightHours: number;
+  overtimeRequested: boolean;
+  overtimeApproved: boolean;
+  overtimeStarted: boolean;
+  overtimeHours: number;
 }
 
 export interface ITimeTrackingDocument extends Document {
@@ -34,16 +52,7 @@ export interface ITimeTrackingDocument extends Document {
 export interface ITimeTrackingModel extends Model<ITimeTrackingDocument> {
   getCurrentMonthTracking(userId: Types.ObjectId): Promise<ITimeTrackingDocument | null>;
   createOrUpdateEntry(userId: Types.ObjectId, entry: Partial<ITimeEntry>): Promise<ITimeTrackingDocument>;
-  getTodayRealTimeStatus(userId: Types.ObjectId): Promise<{
-    entry: ITimeEntry | null;
-    currentTime: Date;
-    totalHours: number;
-    breakHours: number;
-    netHours: number;
-    isWorking: boolean;
-    isPaused: boolean;
-    timeToEightHours: number;
-  } | null>;
+  getTodayRealTimeStatus(userId: Types.ObjectId): Promise<IRealTimeStatus | null>;
 }
 
 const breakSchema = new Schema({
@@ -99,6 +108,22 @@ const timeEntrySchema = new Schema({
   },
   lastResumeTime: {
     type: Date
+  },
+  overtimeRequested: {
+    type: Boolean,
+    default: false
+  },
+  overtimeApproved: {
+    type: Boolean,
+    default: false
+  },
+  overtimeStarted: {
+    type: Boolean,
+    default: false
+  },
+  overtimeHours: {
+    type: Number,
+    default: 0
   }
 }, { _id: false });
 
@@ -233,15 +258,24 @@ function calculateEntryHours(entry: ITimeEntry, forceCheckout: boolean = false):
     }
   }
 
-  // Heures nettes = total - pauses (calcul final) - PLAFONNÉ À 8h
+  // Heures nettes = total - pauses (calcul final) - PLAFONNÉ À 8h SI HEURE SUPP NON LANCÉE
   const rawNetHours = Math.max(0, entry.totalHours - entry.breakHours);
-  entry.netHours = Math.min(8.0, rawNetHours);
+
+  if (entry.overtimeStarted) {
+    // Si l'heure supp est lancée, on ne plafonne plus à 8h
+    // Les 8 premières heures vont dans netHours, le reste dans overtimeHours
+    entry.netHours = 8.0;
+    entry.overtimeHours = Math.max(0, rawNetHours - 8.0);
+  } else {
+    entry.netHours = Math.min(8.0, rawNetHours);
+    entry.overtimeHours = 0;
+  }
 
   // Déterminer le statut
   if (!entry.checkOut) {
     entry.status = 'in_progress';
   } else {
-    entry.status = entry.netHours >= 8 ? 'completed' : entry.netHours >= 4 ? 'partial' : 'present';
+    entry.status = (entry.netHours + (entry.overtimeHours || 0)) >= 8 ? 'completed' : entry.netHours >= 4 ? 'partial' : 'present';
   }
 
   return { shouldAutoCheckout, autoCheckoutReason };
@@ -304,16 +338,7 @@ timeTrackingSchema.statics.calculateEntryHours = function (entry: ITimeEntry): {
 // Méthode pour obtenir le status temps réel d'une journée
 timeTrackingSchema.statics.getTodayRealTimeStatus = async function (
   userId: Types.ObjectId
-): Promise<{
-  entry: ITimeEntry | null;
-  currentTime: Date;
-  totalHours: number;
-  breakHours: number;
-  netHours: number;
-  isWorking: boolean;
-  isPaused: boolean;
-  timeToEightHours: number; // minutes restantes jusqu'à 8h
-} | null> {
+): Promise<IRealTimeStatus | null> {
   const now = new Date();
   const { month, year } = getMadaDateComponents(now);
   const tracking = await this.findOne({
@@ -337,7 +362,11 @@ timeTrackingSchema.statics.getTodayRealTimeStatus = async function (
       netHours: 0,
       isWorking: false,
       isPaused: false,
-      timeToEightHours: 8 * 60 // 8 heures en minutes
+      timeToEightHours: 8 * 60, // 8 heures en minutes
+      overtimeRequested: false,
+      overtimeApproved: false,
+      overtimeStarted: false,
+      overtimeHours: 0
     };
   }
 
@@ -377,7 +406,11 @@ timeTrackingSchema.statics.getTodayRealTimeStatus = async function (
     netHours: entry.netHours,
     isWorking: !entry.checkOut,
     isPaused: entry.isPaused || false,
-    timeToEightHours
+    timeToEightHours,
+    overtimeRequested: entry.overtimeRequested || false,
+    overtimeApproved: entry.overtimeApproved || false,
+    overtimeStarted: entry.overtimeStarted || false,
+    overtimeHours: entry.overtimeHours || 0
   };
 };
 
