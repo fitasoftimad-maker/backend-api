@@ -536,7 +536,27 @@ export const requestOvertime = async (req: Request, res: Response<IApiResponse>)
 
     const todayEntry = tracking.entries.find(e => getMadaDateString(e.date) === todayMada);
 
-    if (!todayEntry || (todayEntry.netHours || 0) < 8) {
+    if (!todayEntry) {
+      res.status(400).json({ success: false, message: 'Aucun pointage trouvé pour aujourd\'hui' });
+      return;
+    }
+
+    // Calculer les heures en temps réel pour validation car todayEntry.netHours en DB n'est mis à jour qu'au checkout ou reload dashboard
+    const nowLocalDate = new Date();
+    const endTime = todayEntry.checkOut || nowLocalDate;
+
+    // Total brut
+    const totalHoursRaw = (endTime.getTime() - todayEntry.checkIn!.getTime()) / (1000 * 60 * 60);
+
+    // Pauses
+    const breakHoursRaw = todayEntry.breaks.reduce((total: number, b: any) => {
+      const end = b.end || nowLocalDate;
+      return total + (end.getTime() - b.start.getTime()) / (1000 * 60 * 60);
+    }, 0);
+
+    const realTimeNetHours = Math.max(0, totalHoursRaw - breakHoursRaw);
+
+    if (realTimeNetHours < 8) {
       res.status(400).json({ success: false, message: "L'objectif de 8h doit être atteint avant de demander des heures supplémentaires" });
       return;
     }
