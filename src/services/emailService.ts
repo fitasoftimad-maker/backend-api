@@ -134,3 +134,48 @@ export const sendUserRegistrationEmail = async (userData: {
     html
   });
 };
+
+export const sendPasswordResetEmail = async (email: string, resetUrl: string): Promise<void> => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #3b82f6; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f8fafc; padding: 20px; border-radius: 0 0 8px 8px; }
+        .button { display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 20px; }
+        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2>🔒 Réinitialisation de mot de passe - Softimad</h2>
+        </div>
+        <div class="content">
+          <p>Bonjour,</p>
+          <p>Vous recevez cet email car vous avez demandé la réinitialisation de votre mot de passe pour votre compte Softimad.</p>
+          <p>Veuillez cliquer sur le bouton ci-dessous pour choisir un nouveau mot de passe. Ce lien est valable pendant 10 minutes.</p>
+          
+          <div style="text-align: center;">
+            <a href="${resetUrl}" class="button" style="color: white;">Réinitialiser mon mot de passe</a>
+          </div>
+          
+          <p style="margin-top: 20px;">Si vous n'avez pas demandé cette réinitialisation, veuillez ignorer cet email.</p>
+        </div>
+        <div class="footer">
+          <p>Cet email a été envoyé automatiquement par le système Softimad.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to: email,
+    subject: '🔒 Réinitialisation de mot de passe - Softimad',
+    html
+  });
+};

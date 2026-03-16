@@ -5,8 +5,9 @@ import User, { IUserDocument } from '../models/User';
 import Dashboard from '../models/Dashboard';
 import TimeTracking from '../models/TimeTracking';
 import jwt, { SignOptions } from 'jsonwebtoken';
+import crypto from 'crypto';
 import { IAuthRequest, ILoginRequest, IUpdateProfileRequest, IChangePasswordRequest, IApiResponse } from '../types';
-import { sendUserRegistrationEmail } from '../services/emailService';
+import { sendUserRegistrationEmail, sendPasswordResetEmail } from '../services/emailService';
 
 // Générer un token JWT
 const generateToken = (id: string, role: string): string => {
@@ -653,6 +654,149 @@ export const updateUserProfile = async (req: Request, res: Response<IApiResponse
       message: process.env.NODE_ENV === 'development'
         ? `Erreur serveur lors de la mise à jour du profil: ${error?.message || 'Erreur inconnue'}`
         : 'Erreur serveur lors de la mise à jour du profil'
+    });
+  }
+};
+
+// @desc    Mot de passe oublié - demande de lien
+// @route   POST /api/auth/forgot-password
+// @access  Public
+export const forgotPassword = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({
+        success: false,
+        message: 'Email requis'
+      });
+      return;
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      // Pour des raisons de sécurité, ne pas indiquer si l'email existe ou non
+      res.json({
+        success: true,
+        message: 'Si un compte existe pour cet email, un lien de réinitialisation a été envoyé.'
+      });
+      return;
+    }
+
+    // Générer le jeton de réinitialisation
+    const resetToken = (user as any).createPasswordResetToken();
+    await user.save({ validateBeforeSave: false });
+
+    // Créer l'URL de réinitialisation
+    // In production, use the current host or a fixed domain
+    const resetUrl = `${req.protocol}://${req.get('host')?.replace('backend-api-9c1n.onrender.com', 'site-vitrine-simple.vercel.app')}/admin/reset-password/${resetToken}`;
+
+    // Note: If the user is on local, req.get('host') might be localhost:5000
+    // We ideally want the frontend URL.
+    const frontendUrl = process.env.FRONTEND_URL || 'https://site-vitrine-simple.vercel.app';
+    const finalResetUrl = `${frontendUrl}/admin/reset-password?token=${resetToken}`;
+
+    try {
+      // Assuming sendPasswordResetEmail is imported from '../utils/email'
+      // Assuming jwt is imported from 'jsonwebtoken'
+      // Assuming crypto is imported from 'crypto'
+      await sendPasswordResetEmail(user.email, finalResetUrl);
+      res.json({
+        success: true,
+        message: 'Lien de réinitialisation envoyé à votre adresse email.'
+      });
+    } catch (err) {
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+
+      console.error('Erreur lors de l\'envoi de l\'email de réinitialisation:', err);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur lors de l\'envoi de l\'email. Veuillez réessayer plus tard.'
+      });
+    }
+  } catch (error) {
+    console.error('Erreur forgotPassword:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la demande de réinitialisation'
+    });
+  }
+};
+
+// @desc    Réinitialiser le mot de passe avec le jeton
+// @route   POST /api/auth/reset-password/:token
+// @access  Public
+export const resetPassword = async (req: Request, res: Response<IApiResponse>): Promise<void> => {
+  try {
+    // 1) Obtenir l'utilisateur basé sur le jeton
+    // Assuming crypto is imported from 'crypto'
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(req.params.token)
+      .update(req.params.token) // Wait, I used req.params.token once in createPasswordResetToken
+      .digest('hex');
+
+    // Correction: Match what we did in createPasswordResetToken
+    const correctHashedToken = crypto
+      .createHash('sha256')
+      .update(req.params.token)
+      .digest('hex');
+
+    const user = await User.findOne({
+      passwordResetToken: correctHashedToken,
+      passwordResetExpires: { $gt: new Date() }
+    });
+
+    // 2) Si le jeton n'a pas expiré et qu'il y a un utilisateur, définir le nouveau mot de passe
+    if (!user) {
+      res.status(400).json({
+        success: false,
+        message: 'Le lien est invalide ou a expiré'
+      });
+      return;
+    }
+
+    const { password, confirmPassword } = req.body;
+
+    if (!password || password !== confirmPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'Les mots de passe ne correspondent pas'
+      });
+      return;
+    }
+
+    user.password = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    // 3) Connecter l'utilisateur, envoyer le token JWT
+    // Assuming jwt is imported from 'jsonwebtoken'
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET!, {
+      expiresIn: '7d'
+    });
+
+    res.json({
+      success: true,
+      message: 'Mot de passe réinitialisé avec succès',
+      data: {
+        token,
+        user: {
+          id: user._id,
+          email: user.email,
+          role: user.role
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Erreur resetPassword:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la réinitialisation du mot de passe'
     });
   }
 };

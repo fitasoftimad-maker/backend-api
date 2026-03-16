@@ -8,7 +8,9 @@ import {
   updateProfile,
   updateUserProfile,
   changePassword,
-  logout
+  logout,
+  forgotPassword,
+  resetPassword
 } from '../controllers/authController';
 
 import {
@@ -117,6 +119,26 @@ router.post('/login', loginLimiter, [
     .notEmpty()
     .withMessage('Le mot de passe est requis')
 ], login);
+
+router.post('/forgot-password', [
+  body('email')
+    .isEmail()
+    .withMessage('Veuillez fournir un email valide')
+    .normalizeEmail()
+], forgotPassword);
+
+router.post('/reset-password/:token', [
+  body('password')
+    .isLength({ min: 6 })
+    .withMessage('Le mot de passe doit contenir au moins 6 caractères'),
+  body('confirmPassword')
+    .custom((value, { req }) => {
+      if (value !== req.body.password) {
+        throw new Error('Les mots de passe ne correspondent pas');
+      }
+      return true;
+    })
+], resetPassword);
 
 // Routes protégées
 router.use(authenticateToken); // Toutes les routes suivantes nécessitent une authentification

@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { IUser } from '../types';
 
 export interface IUserDocument extends Document {
@@ -21,6 +22,8 @@ export interface IUserDocument extends Document {
   lockUntil?: Date;
   createdAt?: Date;
   updatedAt?: Date;
+  passwordResetToken?: string;
+  passwordResetExpires?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
   incLoginAttempts(): Promise<any>;
   resetLoginAttempts(): Promise<any>;
@@ -47,7 +50,7 @@ const userSchema = new Schema({
     lowercase: true,
     trim: true,
     validate: {
-      validator: function(email: string) {
+      validator: function (email: string) {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
       },
       message: 'Veuillez fournir un email valide'
@@ -116,7 +119,9 @@ const userSchema = new Schema({
   lockUntil: {
     type: Date,
     default: null
-  }
+  },
+  passwordResetToken: String,
+  passwordResetExpires: Date
 }, {
   timestamps: true
 });
@@ -124,12 +129,12 @@ const userSchema = new Schema({
 // Index pour les performances (les index sont déjà définis dans les champs unique)
 
 // Méthode pour vérifier si le compte est verrouillé
-userSchema.methods.isLocked = function(): boolean {
+userSchema.methods.isLocked = function (): boolean {
   return !!(this.lockUntil && this.lockUntil > new Date());
 };
 
 // Méthode pour incrémenter les tentatives de connexion
-userSchema.methods.incLoginAttempts = function() {
+userSchema.methods.incLoginAttempts = function () {
   if (this.lockUntil && this.lockUntil < new Date()) {
     return this.updateOne({
       $unset: { lockUntil: 1 },
@@ -148,7 +153,7 @@ userSchema.methods.incLoginAttempts = function() {
 };
 
 // Méthode pour réinitialiser les tentatives de connexion
-userSchema.methods.resetLoginAttempts = function() {
+userSchema.methods.resetLoginAttempts = function () {
   return this.updateOne({
     $unset: { loginAttempts: 1, lockUntil: 1 },
     $set: { lastLogin: new Date() }
@@ -156,12 +161,26 @@ userSchema.methods.resetLoginAttempts = function() {
 };
 
 // Méthode pour comparer les mots de passe
-userSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
+userSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+// Méthode pour générer un jeton de réinitialisation de mot de passe
+userSchema.methods.createPasswordResetToken = function () {
+  const resetToken = crypto.randomBytes(32).toString('hex');
+
+  this.passwordResetToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  this.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  return resetToken;
+};
+
 // Middleware pour hasher le mot de passe avant la sauvegarde
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
 
   try {
@@ -174,7 +193,7 @@ userSchema.pre('save', async function(next) {
 });
 
 // Middleware pour transformer l'email en minuscules
-userSchema.pre('save', function(next) {
+userSchema.pre('save', function (next) {
   if (this.isModified('email')) {
     this.email = this.email.toLowerCase();
   }
@@ -182,7 +201,7 @@ userSchema.pre('save', function(next) {
 });
 
 // Méthode statique pour créer un admin par défaut
-userSchema.statics.createDefaultAdmin = async function() {
+userSchema.statics.createDefaultAdmin = async function () {
   try {
     const adminExists = await this.findOne({ role: 'admin' });
     if (!adminExists) {
