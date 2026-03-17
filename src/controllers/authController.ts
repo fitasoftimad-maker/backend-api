@@ -706,7 +706,7 @@ export const forgotPassword = async (req: Request, res: Response<IApiResponse>):
         success: true,
         message: 'Lien de réinitialisation envoyé à votre adresse email.'
       });
-    } catch (err) {
+    } catch (err: any) {
       user.passwordResetToken = undefined;
       user.passwordResetExpires = undefined;
       await user.save({ validateBeforeSave: false });
