@@ -20,7 +20,7 @@ const createTransporter = () => {
 
   // Utiliser les variables d'environnement pour la configuration
   // Pour Gmail, vous pouvez utiliser OAuth2 ou un mot de passe d'application
-  return nodemailer.createTransport({
+  const smtpConfig = {
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT || '587'),
     secure: process.env.SMTP_SECURE === 'true',
@@ -29,13 +29,26 @@ const createTransporter = () => {
       pass: process.env.SMTP_PASS
     },
     // Options optimisées pour Gmail sur Render/Cloud
-    connectionTimeout: 30000, // Augmenté à 30 secondes comme dans le PHP
+    connectionTimeout: 30000,
     greetingTimeout: 30000,
     socketTimeout: 45000,
     dnsTimeout: 10000,
-    // Forcer l'IPv4 car IPv6 pose souvent problème sur Render avec Gmail
-    family: 4
-  } as any);
+    family: 4,
+    // Activation du debug Nodemailer
+    debug: true,
+    logger: true
+  };
+
+  console.log('🔍 Configuration SMTP utilisée:', {
+    host: smtpConfig.host,
+    port: smtpConfig.port,
+    secure: smtpConfig.secure,
+    user: smtpConfig.auth.user,
+    hasPass: !!smtpConfig.auth.pass,
+    env_node: process.env.NODE_ENV
+  });
+
+  return nodemailer.createTransport(smtpConfig as any);
 };
 
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
