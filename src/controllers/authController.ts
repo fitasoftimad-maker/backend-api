@@ -714,14 +714,14 @@ export const forgotPassword = async (req: Request, res: Response<IApiResponse>):
       console.error('Erreur lors de l\'envoi de l\'email de réinitialisation:', err);
       res.status(500).json({
         success: false,
-        message: 'Erreur lors de l\'envoi de l\'email. Veuillez réessayer plus tard.'
+        message: `Erreur lors de l'envoi de l'email: ${err.message || 'Erreur inconnue'}`
       });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erreur forgotPassword:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la demande de réinitialisation'
+      message: `Erreur serveur lors de la demande de réinitialisation: ${error.message || 'Erreur inconnue'}`
     });
   }
 };
@@ -792,11 +792,11 @@ export const resetPassword = async (req: Request, res: Response<IApiResponse>): 
         }
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erreur resetPassword:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la réinitialisation du mot de passe'
+      message: `Erreur serveur lors de la réinitialisation du mot de passe: ${error.message || 'Erreur inconnue'}`
     });
   }
 };

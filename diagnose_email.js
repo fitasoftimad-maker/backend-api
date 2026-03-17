@@ -4,7 +4,7 @@ const dotenv = require('dotenv');
 const nodemailer = require('nodemailer');
 
 // Explicitly load .env from the backend directory
-const envPath = path.resolve(__dirname, 'backend', '.env');
+const envPath = path.resolve(__dirname, '.env');
 const result = dotenv.config({ path: envPath });
 
 console.log('Loading .env from:', envPath);
