@@ -21,14 +21,21 @@ const createTransporter = () => {
   // Utiliser les variables d'environnement pour la configuration
   // Pour Gmail, vous pouvez utiliser OAuth2 ou un mot de passe d'application
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '465'),
-    secure: process.env.SMTP_SECURE === 'true', // true pour 465, false pour les autres ports
+    host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
-    }
-  });
+    },
+    // Options pour éviter les timeouts sur Render/Cloud
+    connectionTimeout: 10000, // 10 secondes
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+    dnsTimeout: 5000,
+    // Forcer l'IPv4 car IPv6 pose souvent problème sur Render
+    family: 4
+  } as any);
 };
 
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
