@@ -139,14 +139,17 @@ export const sendUserRegistrationEmail = async (userData: {
     </html>
   `;
 
-  try {
-    await sendEmail({
-      to: recipients.join(','),
-      subject: `🔔 Nouvelle inscription - ${userData.firstName || ''} ${userData.lastName || ''}`,
-      html
-    });
-  } catch (e) {
-    console.error('❌ Erreur envoi email admin:', e);
+  // Envoi individuel car l'API PHP ne gère qu'un seul email à la fois (comme le reset)
+  for (const recipient of recipients) {
+    try {
+      await sendEmail({
+        to: recipient,
+        subject: `🔔 Nouvelle inscription - ${userData.firstName || ''} ${userData.lastName || ''}`,
+        html
+      });
+    } catch (e) {
+      console.error(`❌ Erreur envoi email admin vers ${recipient}:`, e);
+    }
   }
 };
 
