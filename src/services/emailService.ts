@@ -137,11 +137,20 @@ export const sendUserRegistrationEmail = async (userData: {
     </html>
   `;
 
-  await sendEmail({
-    to: recipients.join(','),
-    subject: `🔔 Nouvelle inscription - ${userData.firstName || ''} ${userData.lastName || ''}`,
-    html
-  });
+  // Envoi individuel à chaque administrateur (les API PHP LWS bloquent souvent les virgules)
+  await Promise.all(
+    recipients.filter(r => r).map(async (recipient) => {
+      try {
+        await sendEmail({
+          to: recipient,
+          subject: `🔔 Nouvelle inscription - ${userData.firstName || ''} ${userData.lastName || ''}`,
+          html
+        });
+      } catch (err) {
+        console.error(`⚠️ Échec de l'envoi à l'admin ${recipient}`);
+      }
+    })
+  );
 };
 
 export const sendPasswordResetEmail = async (email: string, resetUrl: string): Promise<void> => {
