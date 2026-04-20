@@ -1,4 +1,5 @@
-import nodemailer from 'nodemailer';
+import nodemailer from 'nodemailer'; // ⚠️ gardé (fallback futur)
+import axios from 'axios';
 
 interface EmailOptions {
   to: string;
@@ -6,67 +7,53 @@ interface EmailOptions {
   html: string;
 }
 
-// Configuration du transporteur email
-// Configuration du transporteur email
+// ✅ Typage de la réponse PHP (CORRECTION PRINCIPALE)
+interface EmailApiResponse {
+  success: boolean;
+  error?: string;
+}
+
+// ✅ URL de ton API PHP sur LWS
+const EMAIL_API_URL = 'https://test.softimad.com/api/send-email.php';
+
+// ✅ Clé sécurisée
+const EMAIL_API_KEY = process.env.EMAIL_API_KEY || 'MA_CLE_SECRETE_123';
+
+// ❌ Gardé pour compatibilité future (non utilisé)
 const createTransporter = () => {
-  // Vérification critique des variables d'environnement
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.error('❌ ERREUR CRITIQUE: Configuration email manquante (SMTP_USER ou SMTP_PASS)');
-    if (process.env.NODE_ENV === 'production') {
-      console.error('👉 Veuillez vérifier les variables d\'environnement sur votre plateforme d\'hébergement (Render, etc.)');
-    }
-    // Ne pas crasher complètement pour permettre le diagnostic, mais loguer l'erreur
+    console.error('❌ ERREUR CRITIQUE: Configuration email manquante');
   }
 
-  // Utiliser les variables d'environnement pour la configuration
-  // Pour Gmail, vous pouvez utiliser OAuth2 ou un mot de passe d'application
-  const smtpConfig = {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    },
-    // Options optimisées pour Gmail sur Render/Cloud
-    connectionTimeout: 30000,
-    greetingTimeout: 30000,
-    socketTimeout: 45000,
-    dnsTimeout: 10000,
-    family: 4,
-    // Activation du debug Nodemailer
-    debug: true,
-    logger: true
-  };
-
-  console.log('🔍 Configuration SMTP utilisée:', {
-    host: smtpConfig.host,
-    port: smtpConfig.port,
-    secure: smtpConfig.secure,
-    user: smtpConfig.auth.user,
-    hasPass: !!smtpConfig.auth.pass,
-    env_node: process.env.NODE_ENV
-  });
-
-  return nodemailer.createTransport(smtpConfig as any);
+  return nodemailer.createTransport({});
 };
 
+// ✅ ENVOI EMAIL VIA PHP (corrigé TypeScript)
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
   try {
-    const transporter = createTransporter();
+    const response = await axios.post<EmailApiResponse>(
+      EMAIL_API_URL,
+      {
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        apiKey: EMAIL_API_KEY
+      },
+      {
+        timeout: 10000
+      }
+    );
 
-    const mailOptions = {
-      from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@softimad.com',
-      to: options.to,
-      subject: options.subject,
-      html: options.html
-    };
+    // ✅ plus d'erreur ici
+    if (!response.data || !response.data.success) {
+      console.error('❌ Erreur côté PHP:', response.data);
+      throw new Error(response.data?.error || 'Email non envoyé');
+    }
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Email envoyé avec succès:', info.messageId);
-  } catch (error) {
-    console.error('❌ Erreur lors de l\'envoi de l\'email:', error);
-    // Ne pas faire échouer l'inscription si l'email échoue
+    console.log('✅ Email envoyé via LWS');
+
+  } catch (error: any) {
+    console.error('❌ Erreur lors de l\'envoi de l\'email:', error.message);
     throw error;
   }
 };
@@ -79,11 +66,13 @@ export const sendUserRegistrationEmail = async (userData: {
   contractType?: string;
   role: string;
 }): Promise<void> => {
-  // Récupérer les emails depuis la variable d'environnement ou utiliser les valeurs par défaut
-  const adminEmails = process.env.ADMIN_NOTIFICATION_EMAIL || 'fita.softimad@gmail.com,johny.softimad@outlook.com';
 
-  // Convertir en tableau si nécessaire ou laisser comme string (nodemailer gère "email1, email2")
+  const adminEmails =
+    process.env.ADMIN_NOTIFICATION_EMAIL ||
+    'fita.softimad@gmail.com,johny.softimad@outlook.com';
+
   const recipients = adminEmails.split(',').map(email => email.trim());
+
   console.log('📧 Envoi de notification aux administrateurs:', recipients);
 
   const html = `
@@ -149,13 +138,14 @@ export const sendUserRegistrationEmail = async (userData: {
   `;
 
   await sendEmail({
-    to: recipients.join(','), // Convertir le tableau en chaîne séparée par des virgules
+    to: recipients.join(','),
     subject: `🔔 Nouvelle inscription - ${userData.firstName || ''} ${userData.lastName || ''}`,
     html
   });
 };
 
 export const sendPasswordResetEmail = async (email: string, resetUrl: string): Promise<void> => {
+
   const html = `
     <!DOCTYPE html>
     <html>
