@@ -136,22 +136,20 @@ export const register = async (req: Request<{}, IApiResponse, IAuthRequest>, res
       isValidated: isValidated
     });
 
-    // Envoyer un email à l'admin pour notification (seulement pour les users, pas les admins)
-    if (!isValidated) {
-      try {
-        await sendUserRegistrationEmail({
-          firstName,
-          lastName,
-          email,
-          cin,
-          contractType,
-          role: userRole
-        });
-        console.log('✅ Email de notification envoyé à l\'admin');
-      } catch (emailError) {
-        console.error('⚠️ Erreur lors de l\'envoi de l\'email (non bloquant):', emailError);
-        // Ne pas faire échouer l'inscription si l'email échoue
-      }
+    // Envoyer un email à l'admin pour notification à chaque nouvelle inscription
+    try {
+      await sendUserRegistrationEmail({
+        firstName,
+        lastName,
+        email,
+        cin,
+        contractType,
+        role: userRole
+      });
+      console.log('✅ Email de notification envoyé à l\'admin');
+    } catch (emailError) {
+      console.error('⚠️ Erreur lors de l\'envoi de l\'email (non bloquant):', emailError);
+      // Ne pas faire échouer l'inscription si l'email échoue
     }
 
     // Créer les widgets par défaut pour le tableau de bord seulement si validé
