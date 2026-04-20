@@ -179,8 +179,18 @@ export const sendPasswordResetEmail = async (email: string, resetUrl: string): P
           <h2>🔒 Réinitialisation de mot de passe</h2>
         </div>
         <div class="content">
-          <p>Cliquez ici :</p>
-          <a href="${resetUrl}" class="button">Réinitialiser</a>
+          <p>Bonjour,</p>
+          <p>Vous recevez cet email car vous avez demandé la réinitialisation de votre mot de passe pour votre compte Softimad.</p>
+          <p>Veuillez cliquer sur le bouton ci-dessous pour choisir un nouveau mot de passe. Ce lien est valable pendant 10 minutes.</p>
+          
+          <div style="text-align: center;">
+            <a href="${resetUrl}" class="button" style="color: white;">Réinitialiser mon mot de passe</a>
+          </div>
+          
+          <p style="margin-top: 20px;">Si vous n'avez pas demandé cette réinitialisation, veuillez ignorer cet email.</p>
+        </div>
+        <div class="footer">
+          <p>Cet email a été envoyé automatiquement par le système Softimad.</p>
         </div>
       </div>
     </body>
